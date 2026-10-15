@@ -1,0 +1,69 @@
+{
+  "generator": "3D Hub Slicer Intelligence System v2.4",
+  "targetSlicers": [
+    "Bambu Studio",
+    "OrcaSlicer",
+    "PrusaSlicer"
+  ],
+  "model": {
+    "id": "benchy",
+    "name": "3D Benchy - The Jolly Benchmark",
+    "dimensions": {
+      "x": 60,
+      "y": 31,
+      "z": 48
+    }
+  },
+  "printer": {
+    "name": "Bambu Lab X1-Carbon / P1S / P1P",
+    "bedType": "Textured PEI Plate",
+    "bedDimensions": {
+      "x": 256,
+      "y": 256,
+      "z": 256
+    },
+    "nozzleDiameterMm": 0.4
+  },
+  "filament": {
+    "type": "PLA Standard / PLA Matte",
+    "brand": "Bambu Lab PLA Basic / eSun PLA+",
+    "nozzleTempC": 215,
+    "firstLayerNozzleTempC": 220,
+    "bedTempC": 55,
+    "fanSpeedPercent": 100
+  },
+  "process": {
+    "layerHeightMm": 0.16,
+    "firstLayerHeightMm": 0.2,
+    "outerWallSpeedMmS": 60,
+    "innerWallSpeedMmS": 120,
+    "infillSpeedMmS": 200,
+    "topSurfaceSpeedMmS": 50,
+    "infillPattern": "Gyroid",
+    "infillDensityPercent": 15,
+    "seamPosition": "Back",
+    "ironingEnabled": true,
+    "retractionDistanceMm": 0.8,
+    "retractionSpeedMmS": 35,
+    "zHopMm": 0.2
+  },
+  "supports": {
+    "enabled": true,
+    "type": "tree",
+    "overhangThresholdDeg": 50,
+    "treeBranchAngleDeg": 45,
+    "treeBranchDiameterMm": 2,
+    "topInterfaceLayers": 2,
+    "topInterfaceSpacingMm": 0.2
+  },
+  "proTips": [
+    "🔥 Khắc phục \"Benchy Hull Line\": Đặt Outer Wall Speed cố định 60 mm/s cho toàn bộ chiều cao để lưu lượng nhựa đùn đều tuyệt đối.",
+    "🌬️ Ống khói sắc nét: Đặt \"Minimum Layer Time\" là 7 giây để quạt kịp làm nguội lớp nhựa trước khi đầu in đắp lớp tiếp theo.",
+    "🌉 Cầu vòm Cabin không bị xệ (Bridging): Tăng Bridge Fan Speed lên 100%, giảm Bridge Speed xuống 25 mm/s.",
+    "🎯 Bàn in sạch: Lau bàn PEI bằng cồn Isopropyl (IPA) 90%+ trước khi in để đáy thuyền bám chắc, không bị cong góc (warping)."
+  ],
+  "gcodeSnippet": {
+    "startGcode": "; === 3D HUB OPTIMIZED START GCODE ===\nG28 ; Home all axes\nM104 S220 ; Set nozzle temp\nM140 S55 ; Set bed temp\nG29.1 Z0.2 ; Auto bed tramming offset\nM109 S220 ; Wait nozzle temp\nM190 S55 ; Wait bed temp\nG1 Z0.2 F1200 ; Prime line approach\nG1 X60.0 E9.0 F1000 ; Intro line\n; =====================================",
+    "endGcode": "; === 3D HUB OPTIMIZED END GCODE ===\nM104 S0 ; Turn off extruder\nM140 S0 ; Turn off bed\nG91 ; Relative positioning\nG1 E-1 F300 ; Retract\nG1 Z+10 F3000 ; Move up\nG90 ; Absolute positioning\nG1 X0 Y256 F3000 ; Present print\nM84 ; Disable motors\n; ==================================="
+  }
+}
