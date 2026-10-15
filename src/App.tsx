@@ -50,6 +50,7 @@ import { GeminiApiKeyModal } from '@/components/controls/GeminiApiKeyModal';
 import { getSavedGeminiApiKey } from '@/services/geminiSupportService';
 import { LocalSlicerModal } from '@/components/controls/LocalSlicerModal';
 import { ModelLibraryModal } from '@/components/controls/ModelLibraryModal';
+import { AI3DGeneratorModal } from '@/components/controls/AI3DGeneratorModal';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { ISliceResponse } from '@/services/localSlicerService';
 
@@ -77,6 +78,7 @@ export default function App() {
   const [isGeminiKeyModalOpen, setIsGeminiKeyModalOpen] = useState<boolean>(false);
   const [isLocalSlicerModalOpen, setIsLocalSlicerModalOpen] = useState<boolean>(false);
   const [isModelLibraryOpen, setIsModelLibraryOpen] = useState<boolean>(false);
+  const [isAI3DModalOpen, setIsAI3DModalOpen] = useState<boolean>(false);
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(() => {
     return getSavedGeminiApiKey().length > 0;
   });
@@ -532,6 +534,19 @@ export default function App() {
     setProfile((prev) => ({ ...prev, ...patch }));
   };
 
+  // Nạp mô hình từ AI 3D Generator Studio (Trellis • Tripo • Meshy)
+  const handleAIModelLoaded = (model: ISampleModel, geom: THREE.BufferGeometry) => {
+    setCurrentModel(model);
+    setBaseGeometry(geom);
+    setModelTransform(DEFAULT_TRANSFORM);
+    confetti({
+      particleCount: 60,
+      spread: 70,
+      origin: { y: 0.75 },
+      colors: ['#2dd4bf', '#10b981', '#38bdf8', '#c084fc'],
+    });
+  };
+
   return (
     <div className="relative w-screen h-screen overflow-hidden select-none bg-[#07090e] text-white">
       {/* 1. Header Toolbar (Single Unified Top Bar - No Overlap) */}
@@ -566,6 +581,7 @@ export default function App() {
         onOpenGeminiKeyModal={() => setIsGeminiKeyModalOpen(true)}
         onOpenLocalSlicerModal={() => setIsLocalSlicerModalOpen(true)}
         onOpenModelLibrary={() => setIsModelLibraryOpen(true)}
+        onOpenAI3DModal={() => setIsAI3DModalOpen(true)}
       />
 
       {/* Engine 2: Pro Slicer Local Telemetry HUD (Khi chọn Engine 2: Pro Local Core) */}
@@ -730,6 +746,13 @@ export default function App() {
         currentModel={currentModel}
         onSelectSample={handleSelectSample}
         onLoadCustomGeometry={handleLoadCustomGeometry}
+      />
+
+      {/* 13. AI 3D Generator Studio Modal (Trellis • Tripo3D • Meshy) */}
+      <AI3DGeneratorModal
+        isOpen={isAI3DModalOpen}
+        onClose={() => setIsAI3DModalOpen(false)}
+        onModelLoaded={handleAIModelLoaded}
       />
     </div>
   );

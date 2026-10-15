@@ -63,6 +63,8 @@ interface SimulatorHeaderProps {
   onOpenLocalSlicerModal: () => void;
   // Model Library / 3MF Selector
   onOpenModelLibrary?: () => void;
+  // AI 3D Generator Studio (Trellis / Tripo / Meshy)
+  onOpenAI3DModal?: () => void;
 }
 
 export function SimulatorHeader({
@@ -95,6 +97,7 @@ export function SimulatorHeader({
   onOpenGeminiKeyModal,
   onOpenLocalSlicerModal,
   onOpenModelLibrary,
+  onOpenAI3DModal,
 }: SimulatorHeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -309,6 +312,22 @@ export function SimulatorHeader({
             </button>
           )}
         </div>
+
+        {/* AI 3D Model Studio Trigger (Trellis • Tripo • Meshy) */}
+        {onOpenAI3DModal && (
+          <button
+            data-testid="ai-3d-generator-btn"
+            onClick={onOpenAI3DModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-400 hover:from-teal-300 hover:to-emerald-300 text-slate-950 text-xs font-black transition-all active:scale-95 cursor-pointer shadow-xl"
+            title="Sinh mô hình 3D tự động bằng AI (Microsoft Trellis, Tripo3D v2.5, Meshy-4) và tự động cắt lớp Tree Support"
+          >
+            <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
+            <span>AI Tạo 3D</span>
+            <span className="hidden 2xl:inline text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-black/20 text-slate-950">
+              Trellis / Tripo
+            </span>
+          </button>
+        )}
 
         {/* Upload Custom Model Button (3MF / STL / OBJ) */}
         <input
