@@ -40,6 +40,7 @@ import { PrintSimulatorViewport } from '@/components/viewport/PrintSimulatorView
 import { TimeScrubber } from '@/components/controls/TimeScrubber';
 import { ProfileSettingsPanel } from '@/components/controls/ProfileSettingsPanel';
 import { PreflightReportModal } from '@/components/controls/PreflightReportModal';
+import { LiveReportInspectorModal } from '@/components/controls/LiveReportInspectorModal';
 import { ExportProfileModal } from '@/components/controls/ExportProfileModal';
 import { SimulatorHeader } from '@/components/header/SimulatorHeader';
 import { EngineComparisonModal } from '@/components/controls/EngineComparisonModal';
@@ -52,6 +53,7 @@ import { LocalSlicerModal } from '@/components/controls/LocalSlicerModal';
 import { ModelLibraryModal } from '@/components/controls/ModelLibraryModal';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { ISliceResponse } from '@/services/localSlicerService';
+import { useTelemetryLogger } from '@/hooks/useTelemetryLogger';
 
 export default function App() {
   // 1. Model & Geometry State
@@ -67,6 +69,9 @@ export default function App() {
   // 2. Profile State
   const [profile, setProfile] = useState<ISimulationProfile>(PRESET_PROFILES[0]);
 
+  // Hook ghi nhận Telemetry Ingestion sang Backend FastAPI (cổng 8000)
+  useTelemetryLogger(profile, currentModel.name);
+
   // 3. UI Toggles & Engine Selection
   const [simulatorEngine, setSimulatorEngine] = useState<SimulatorEngineType>('wasm_client');
   const [isEngineModalOpen, setIsEngineModalOpen] = useState<boolean>(false);
@@ -77,6 +82,7 @@ export default function App() {
   const [isGeminiKeyModalOpen, setIsGeminiKeyModalOpen] = useState<boolean>(false);
   const [isLocalSlicerModalOpen, setIsLocalSlicerModalOpen] = useState<boolean>(false);
   const [isModelLibraryOpen, setIsModelLibraryOpen] = useState<boolean>(false);
+  const [isLiveInspectorOpen, setIsLiveInspectorOpen] = useState<boolean>(false);
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(() => {
     return getSavedGeminiApiKey().length > 0;
   });
@@ -566,6 +572,7 @@ export default function App() {
         onOpenGeminiKeyModal={() => setIsGeminiKeyModalOpen(true)}
         onOpenLocalSlicerModal={() => setIsLocalSlicerModalOpen(true)}
         onOpenModelLibrary={() => setIsModelLibraryOpen(true)}
+        onOpenLiveInspectorModal={() => setIsLiveInspectorOpen(true)}
       />
 
       {/* Engine 2: Pro Slicer Local Telemetry HUD (Khi chọn Engine 2: Pro Local Core) */}
@@ -662,6 +669,13 @@ export default function App() {
         onStartSimulation={() => {
           setSimulationState((prev) => ({ ...prev, isPlaying: true, isCompleted: false }));
         }}
+      />
+
+      {/* 5.1. Live Telemetry & Locked Report Parameters Inspector Modal */}
+      <LiveReportInspectorModal
+        isOpen={isLiveInspectorOpen}
+        onClose={() => setIsLiveInspectorOpen(false)}
+        currentProfile={profile}
       />
 
       {/* 6. Export Slicer Profile Modal (.json / .gcode / clipboard) */}

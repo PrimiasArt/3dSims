@@ -30,3 +30,20 @@ test_model.*
 *.njsproj
 *.sln
 *.sw?
+
+# Python, Database & Test Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+test_output/
+*.db
+*.db-shm
+*.db-wal
+
+# Local Secrets, Personal Vaults & Internal Planning
+.env
+.env.*
+ObsidianVault/
+PROJECT_STATUS_AND_PLANNING_REPORT.md
+

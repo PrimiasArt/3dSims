@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   ShieldCheck,
@@ -9,8 +9,10 @@ import {
   Clock,
   Coins,
   Sparkles,
+  FileText,
 } from 'lucide-react';
 import { IPreflightReport, IPreflightError, ISimulationProfile } from '@/types/simulator';
+import { triggerAuditGeneration } from '@/services/telemetryService';
 
 interface PreflightReportModalProps {
   isOpen: boolean;
@@ -27,6 +29,9 @@ export function PreflightReportModal({
   onApplyFix,
   onStartSimulation,
 }: PreflightReportModalProps) {
+  const [exportingVault, setExportingVault] = useState<boolean>(false);
+  const [vaultMessage, setVaultMessage] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const statusBg =
@@ -192,24 +197,83 @@ export function PreflightReportModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer"
-          >
-            Đóng Báo Cáo
-          </button>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/10">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={async () => {
+                setExportingVault(true);
+                setVaultMessage(null);
+                const res = await triggerAuditGeneration();
+                setExportingVault(false);
+                if (res) {
+                  setVaultMessage(`✅ Đã lưu Obsidian: ${res.markdown_path.split('\\').pop()}`);
+                } else {
+                  setVaultMessage('⚠️ Chưa thể kết nối Backend FastAPI (Port 8000)');
+                }
+              }}
+              disabled={exportingVault}
+              className="px-3.5 py-2 rounded-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-400/40 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+              title="Xuất Báo Cáo Kiểm Định sang Obsidian Vault kép (.md & .json)"
+            >
+              <span>{exportingVault ? '⏳ Đang phân tích AI...' : '📓 Xuất Obsidian Audit'}</span>
+            </button>
 
-          <button
-            onClick={() => {
-              onClose();
-              onStartSimulation();
-            }}
-            className="px-5 py-2.5 rounded-full bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-black font-extrabold text-xs transition-all shadow-lg active:scale-95 cursor-pointer flex items-center gap-1.5"
-          >
-            <Sparkles className="w-4 h-4 text-black" />
-            <span>Bắt Đầu Giả Lập In Ngay</span>
-          </button>
+            <a
+              href="http://127.0.0.1:8000/api/v1/nhat-ky"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-2 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 text-xs font-bold transition-all flex items-center gap-1 shadow-sm hover:scale-105"
+              title="Xem nhật ký JSON tinh gọn đã khóa (nhat_ky_in.json)"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>JSON Nhật Ký</span>
+            </a>
+
+            <a
+              href="http://127.0.0.1:8000/api/v1/nhat-ky/markdown"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-2 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 text-xs font-bold transition-all flex items-center gap-1 shadow-sm hover:scale-105"
+              title="Xem nhật ký Markdown tinh gọn đã khóa (nhat_ky_in.md)"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>MD Nhật Ký</span>
+            </a>
+
+            <a
+              href="obsidian://open?path=D%3A%5CCheems%5Cnew%5C3D_Sim_QC%5CObsidianVault%5Cnhat_ky_in.md"
+              className="px-3 py-2 rounded-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-400/40 text-xs font-bold transition-all flex items-center gap-1 shadow-sm hover:scale-105"
+              title="Mở trực tiếp tệp nhat_ky_in.md trong ứng dụng Obsidian Desktop"
+            >
+              <span>🔮 Mở Obsidian</span>
+            </a>
+
+            {vaultMessage && (
+              <span className="text-[11px] font-mono text-teal-300 animate-in fade-in truncate max-w-[240px]">
+                {vaultMessage}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer"
+            >
+              Đóng Báo Cáo
+            </button>
+
+            <button
+              onClick={() => {
+                onClose();
+                onStartSimulation();
+              }}
+              className="px-5 py-2.5 rounded-full bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-black font-extrabold text-xs transition-all shadow-lg active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              <Sparkles className="w-4 h-4 text-black" />
+              <span>Bắt Đầu Giả Lập In Ngay</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -63,6 +63,8 @@ interface SimulatorHeaderProps {
   onOpenLocalSlicerModal: () => void;
   // Model Library / 3MF Selector
   onOpenModelLibrary?: () => void;
+  // Live Telemetry & Report Inspector
+  onOpenLiveInspectorModal?: () => void;
 }
 
 export function SimulatorHeader({
@@ -95,6 +97,7 @@ export function SimulatorHeader({
   onOpenGeminiKeyModal,
   onOpenLocalSlicerModal,
   onOpenModelLibrary,
+  onOpenLiveInspectorModal,
 }: SimulatorHeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -399,6 +402,18 @@ export function SimulatorHeader({
           <Download className="w-3.5 h-3.5 text-teal-300" />
           <span className="hidden xl:inline">Xuất</span>
         </button>
+
+        {/* Live Telemetry & Report Inspector Button */}
+        {onOpenLiveInspectorModal && (
+          <button
+            onClick={onOpenLiveInspectorModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-500/25 to-blue-500/25 hover:from-cyan-500/35 hover:to-blue-500/35 text-cyan-200 border border-cyan-400/40 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg backdrop-blur-md"
+            title="Truy xuất trực tiếp các giá trị thay đổi của app và thông số report đã khóa"
+          >
+            <Activity className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
+            <span className="hidden sm:inline">Truy Xuất Report</span>
+          </button>
+        )}
 
         {/* Pre-Flight Inspection HUD Trigger */}
         <button

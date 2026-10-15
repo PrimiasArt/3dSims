@@ -113,6 +113,7 @@ export interface ISampleModel {
   dimensionsMm: [number, number, number];
   estimatedWeightGrams: number;
   accentBadge: string;
+  path?: string;
 }
 
 export interface IModelTransform {
