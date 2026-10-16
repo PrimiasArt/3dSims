@@ -10,7 +10,7 @@ export type PlaybackSpeed = 1 | 5 | 10 | 25 | 50 | 100 | 200 | 500 | 1000 | 'ins
 
 export type SlicerRenderMode = 'realistic' | 'features' | 'defects' | 'speed';
 
-export type ViewportDisplayMode = 'cad' | 'filament_preview';
+export type ViewportDisplayMode = 'prepare' | 'cad' | 'filament_preview';
 
 
 export interface ISimulationProfile {
