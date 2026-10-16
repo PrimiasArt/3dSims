@@ -1,19 +1,14 @@
 """
-Minimalist Log Formatter conforming strictly to the LOCKED SCHEMA contract.
-Unified 1-Table Horizontal Matrix Architecture:
-- Each ROW is a Session (Phiên 01, Phiên 02, ..., Phiên N)
-- Columns represent the 7 Areas/Layers distributed horizontally:
-  1. Phiên In & Kế thừa
-  2. Thời Gian & Người Dùng
-  3. Tiến Trình & Sự Cố
-  4. 🟢 Cấu Hình Cơ Bản (A/B/C/D)
-  5. 🟡 Vách & Vỏ
-  6. 🌲 Cành Đỡ (Support)
-  7. ⚡ Tốc Độ In (F)
-  8. 🔥 Nhiệt Độ & Quạt (E)
-  9. 💧 Đùn Nhựa
-  10. Phiên Tiếp Nối
-- Maximum visual compactness: 7 sessions fit completely on 1 screen without endless scrolling.
+Minimalist Log Formatter conforming strictly to the LOCKED SCHEMA & PRINT LOG CONTRACT.
+Multi-Tier Log Table Component for Obsidian:
+- Multi-tier header hierarchy with parent 'colspan' categories:
+  1. Tiến Trình & Trạng Thái (colspan=3)
+  2. Cấu Hình Cắt Lớp - Slicer (colspan=5)
+  3. Phần Cứng & Đùn Nhựa - Hardware (colspan=3)
+  4. Tiếp Nối (colspan=1)
+- Uses standard Obsidian CSS variables exclusively (Light & Dark mode compatible)
+- Native support for both Obsidian Live Preview and Reading View
+- Output conforms strictly to TypeScript PrintLogSession contract
 """
 import json
 from datetime import datetime
@@ -149,6 +144,146 @@ def format_param_value(param_name: str, val: Any) -> str:
     return str(val)
 
 
+def _get_val_and_churn(entry: Dict[str, Any], key: str, alias: Optional[str] = None) -> Tuple[Optional[str], int]:
+    """Helper to extract parameter value and mutation count."""
+    tham_so = entry.get("tham_so", {})
+    if key in tham_so:
+        it = tham_so[key]
+        if isinstance(it, dict):
+            return it.get("gia_tri"), it.get("so_lan_doi", 1)
+        return str(it), 1
+    if alias and alias in tham_so:
+        it = tham_so[alias]
+        if isinstance(it, dict):
+            return it.get("gia_tri"), it.get("so_lan_doi", 1)
+        return str(it), 1
+    for k in [key, alias] if alias else [key]:
+        if k in entry and entry[k] != "-":
+            raw = str(entry[k])
+            val_part = raw.split(" (")[0]
+            mut = 1
+            if "(" in raw and "lần" in raw:
+                try:
+                    mut = int(raw.split("(")[1].split(" lần")[0].replace("đổi ", "").strip())
+                except Exception:
+                    mut = 1
+            return val_part, mut
+    return None, 0
+
+
+def convert_entry_to_print_log_session(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Converts an existing session entry strictly to the PrintLogSession schema contract:
+    - sessionId: string
+    - parentSessionId?: string
+    - operator: string
+    - startedAt: string
+    - durationMinutes: number
+    - status: 'COMPLETED' | 'WARPING' | 'FAILED' | 'IN_PROGRESS'
+    - failureDetail?: string
+    - slicer: SlicerConfig
+    - hardware: HardwareTelemetry
+    """
+    p_str = entry.get("phien", "01")
+    user = entry.get("nguoi_dung", "Nguyễn Văn A")
+    parent = entry.get("thu_lai_tu_phien")
+    time_raw = entry.get("thoi_gian", "2026-10-15 08:47 (7 phút)")
+
+    duration = 7
+    if "(" in time_raw and "phút" in time_raw:
+        try:
+            duration = int(time_raw.split("(")[1].split(" phút")[0].strip())
+        except Exception:
+            duration = 7
+    started_at = time_raw.split(" (")[0].strip()
+
+    loi = entry.get("loi", "Không phát hiện lỗi")
+    if "Va chạm" in loi or "Warping" in loi:
+        status = "WARPING"
+        failure = "Va chạm đầu in tại lớp 35 (Warping do thiếu vành bám)"
+    elif "Nghẹt" in loi:
+        status = "FAILED"
+        failure = "Nghẹt nhựa đầu phun tại lớp 120 (Trào ngược nhiệt buồng in)"
+    else:
+        status = "COMPLETED"
+        failure = None
+
+    # Slicer Config
+    va, _ = _get_val_and_churn(entry, "A_do_day_lop", "layerHeight")
+    lh = float(va.replace("mm", "").strip()) if va and "mm" in va else 0.20
+
+    vc, _ = _get_val_and_churn(entry, "C_do_rong", "infillDensity")
+    inf = int(vc.replace("%", "").strip()) if vc and "%" in vc else 20
+
+    vw, _ = _get_val_and_churn(entry, "wallLoops")
+    wl = int(vw.replace(" vòng", "").strip()) if vw and "vòng" in vw else 2
+
+    vt, _ = _get_val_and_churn(entry, "topShellLayers")
+    top_l = int(vt.replace(" lớp", "").strip()) if vt and "lớp" in vt else 4
+    vbt, _ = _get_val_and_churn(entry, "bottomShellLayers")
+    bot_l = int(vbt.replace(" lớp", "").strip()) if vbt and "lớp" in vbt else 3
+
+    vb, _ = _get_val_and_churn(entry, "B_canh_do", "supportMode")
+    sup_raw = (vb or "None").lower()
+    if "tree" in sup_raw:
+        sup_type = "Tree"
+    elif "organic" in sup_raw:
+        sup_type = "Organic"
+    elif "normal" in sup_raw:
+        sup_type = "Normal"
+    else:
+        sup_type = "None"
+
+    # Hardware Telemetry
+    vf, _ = _get_val_and_churn(entry, "F_toc_do_day", "printSpeed")
+    spd = int(vf.replace("mm/s", "").strip()) if vf and "mm/s" in vf else 60
+
+    ve, _ = _get_val_and_churn(entry, "E_nhiet_ban_in", "bedTemp")
+    bed_t = int(ve.replace("°C", "").strip()) if ve and "°C" in ve else 60
+
+    v_noz, _ = _get_val_and_churn(entry, "nozzleTemp")
+    noz_t = int(v_noz.replace("°C", "").strip()) if v_noz and "°C" in v_noz else 210
+
+    v_fan, _ = _get_val_and_churn(entry, "coolingFanSpeed")
+    fan_spd = int(v_fan.replace("%", "").strip()) if v_fan and "%" in v_fan else 100
+
+    v_flow, _ = _get_val_and_churn(entry, "flowRateMm3s")
+    flow_r = float(v_flow) if v_flow else 0.98
+
+    v_ret, _ = _get_val_and_churn(entry, "retractionDistanceMm")
+    ret_mm = float(v_ret.replace("mm", "").strip()) if v_ret and "mm" in v_ret else 0.8
+
+    v_zh, _ = _get_val_and_churn(entry, "zHopMm")
+    zh_mm = float(v_zh.replace("mm", "").strip()) if v_zh and "mm" in v_zh else 0.4
+
+    session_obj = {
+        "sessionId": p_str,
+        "operator": user,
+        "startedAt": started_at,
+        "durationMinutes": duration,
+        "status": status,
+        "slicer": {
+            "layerHeightMm": lh,
+            "infillPercent": inf,
+            "wallLoops": wl,
+            "topBottomLayers": {"top": top_l, "bottom": bot_l},
+            "supportType": sup_type,
+            "supportOverhangAngle": 45,
+        },
+        "hardware": {
+            "speedF": {"defaultMmS": spd, "wallMmS": 150, "infillMmS": 275},
+            "tempsE": {"bedTempC": bed_t, "nozzleTempC": noz_t, "fanSpeedPercent": fan_spd},
+            "extrusion": {"flowRatio": flow_r, "retractionMm": ret_mm, "zHopMm": zh_mm},
+        },
+    }
+    if parent:
+        session_obj["parentSessionId"] = parent
+    if failure:
+        session_obj["failureDetail"] = failure
+
+    return session_obj
+
+
 def build_session_entry(
     phien_index: int,
     metrics: List[Any],
@@ -217,231 +352,206 @@ def build_session_entry(
     return entry
 
 
-def _get_val_and_churn(entry: Dict[str, Any], key: str, alias: Optional[str] = None) -> Tuple[Optional[str], int]:
-    """Helper to extract parameter value and mutation count."""
-    tham_so = entry.get("tham_so", {})
-    if key in tham_so:
-        it = tham_so[key]
-        if isinstance(it, dict):
-            return it.get("gia_tri"), it.get("so_lan_doi", 1)
-        return str(it), 1
-    if alias and alias in tham_so:
-        it = tham_so[alias]
-        if isinstance(it, dict):
-            return it.get("gia_tri"), it.get("so_lan_doi", 1)
-        return str(it), 1
-    for k in [key, alias] if alias else [key]:
-        if k in entry and entry[k] != "-":
-            raw = str(entry[k])
-            val_part = raw.split(" (")[0]
-            mut = 1
-            if "(" in raw and "lần" in raw:
-                try:
-                    mut = int(raw.split("(")[1].split(" lần")[0].replace("đổi ", "").strip())
-                except Exception:
-                    mut = 1
-            return val_part, mut
-    return None, 0
+def render_multi_tier_html_table(sessions: List[Dict[str, Any]]) -> str:
+    """
+    Renders an HTML5 Multi-Tier table with parent 'colspan' headers:
+    - Tier 1: Parent Groups (Tiến trình & Trạng thái, Cấu hình Slicer, Phần cứng Hardware, Tiếp nối)
+    - Tier 2: Sub-headers for specific metrics
+    - Styled with standard Obsidian CSS Variables (Dark/Light mode native)
+    """
+    rows_html = []
+    total_sessions = len(sessions)
 
+    for i, s in enumerate(sessions):
+        s_id = s.get("sessionId", f"{i+1:02d}")
+        parent_id = s.get("parentSessionId")
+        op = s.get("operator", "Nguyễn Văn A")
+        started = s.get("startedAt", "-").replace("2026-", "")
+        duration = s.get("durationMinutes", 7)
+        status = s.get("status", "COMPLETED")
+        failure = s.get("failureDetail")
 
-def _format_cell_item(label: str, val: Optional[str], mut: int) -> str:
-    """Formats an item inside a cell with bold label and badge."""
-    if not val or val == "-":
-        return ""
-    badge = f" ({mut} lần ⚠️)" if mut >= 3 else (f" ({mut} lần)" if mut > 1 else "")
-    return f"**{label}:** `{val}`{badge}"
+        slicer = s.get("slicer", {})
+        lh = slicer.get("layerHeightMm", 0.20)
+        inf = slicer.get("infillPercent", 20)
+        wl = slicer.get("wallLoops", 2)
+        tb = slicer.get("topBottomLayers", {"top": 4, "bottom": 3})
+        sup = slicer.get("supportType", "None")
+        ang = slicer.get("supportOverhangAngle", 45)
+
+        hw = s.get("hardware", {})
+        spd = hw.get("speedF", {})
+        spd_def = spd.get("defaultMmS", 60)
+        spd_wall = spd.get("wallMmS", 150)
+        spd_inf = spd.get("infillMmS", 275)
+
+        temps = hw.get("tempsE", {})
+        bed_t = temps.get("bedTempC", 60)
+        noz_t = temps.get("nozzleTempC", 210)
+        fan = temps.get("fanSpeedPercent", 100)
+
+        ext = hw.get("extrusion", {})
+        flow = ext.get("flowRatio", 0.98)
+        ret = ext.get("retractionMm", 0.8)
+        zh = ext.get("zHopMm", 0.4)
+
+        # Status badge HTML
+        if status == "COMPLETED":
+            badge_html = '<span style="display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.45rem; border-radius:var(--radius-s, 4px); font-size:0.7rem; font-weight:700; background-color:rgba(16,185,129,0.15); color:var(--color-green, #10b981); border:1px solid rgba(16,185,129,0.3);">✅ Hoàn tất</span>'
+        elif status == "WARPING":
+            badge_html = '<span style="display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.45rem; border-radius:var(--radius-s, 4px); font-size:0.7rem; font-weight:700; background-color:rgba(245,158,11,0.15); color:var(--color-yellow, #f59e0b); border:1px solid rgba(245,158,11,0.3);">⚠️ Warping L35</span>'
+        elif status == "FAILED":
+            badge_html = '<span style="display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.45rem; border-radius:var(--radius-s, 4px); font-size:0.7rem; font-weight:700; background-color:rgba(239,68,68,0.15); color:var(--color-red, #ef4444); border:1px solid rgba(239,68,68,0.3);">❌ Thất bại</span>'
+        else:
+            badge_html = '<span style="display:inline-flex; align-items:center; gap:0.25rem; padding:0.15rem 0.45rem; border-radius:var(--radius-s, 4px); font-size:0.7rem; font-weight:700; background-color:rgba(59,130,246,0.15); color:var(--color-blue, #3b82f6); border:1px solid rgba(59,130,246,0.3);">🔄 Đang in</span>'
+
+        if failure:
+            badge_html += f'<div style="font-size:0.67rem; color:var(--text-faint); margin-top:2px; max-width:140px; line-height:1.2;">{failure}</div>'
+
+        # Next session link
+        if i < total_sessions - 1:
+            nxt_id = sessions[i + 1].get("sessionId", f"{i+2:02d}")
+            next_html = f'<a class="internal-link" href="PHIEU_{nxt_id}">[[PHIEU_{nxt_id}]]</a>'
+        else:
+            next_html = '<span style="color:var(--text-faint); font-size:0.75rem;">— *(Mới nhất)*</span>'
+
+        parent_sub = f'<div style="font-size:0.68rem; color:var(--text-faint); margin-top:2px;">(từ [[PHIEU_{parent_id}]])</div>' if parent_id else ""
+
+        row_bg = "background-color: var(--background-primary);" if i % 2 == 0 else "background-color: var(--background-secondary-alt, var(--background-secondary));"
+
+        row = f"""      <tr style="{row_bg} border-bottom: 1px solid var(--table-border-color); transition: background-color 0.15s ease;">
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-weight: 700;">
+          <a class="internal-link" href="PHIEU_{s_id}">[[PHIEU_{s_id}]]</a>
+          {parent_sub}
+        </td>
+        <td style="padding: 0.5rem 0.6rem; border-right: 1px solid var(--table-border-color);">
+          <div style="font-weight: 600; color: var(--text-normal);">{op}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-monospace);">{started} ({duration}p)</div>
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color);">
+          {badge_html}
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-family: var(--font-monospace); font-weight: 600;">
+          {lh:.2f}mm
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-family: var(--font-monospace);">
+          {inf}%
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-size: 0.75rem;">
+          {wl}v • {tb.get('top', 4)}/{tb.get('bottom', 3)}
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-size: 0.75rem; font-weight: 600;">
+          {sup}
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-family: var(--font-monospace);">
+          {ang}°
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-size: 0.75rem;">
+          <div style="font-family: var(--font-monospace); font-weight: 700;">{spd_def}mm/s</div>
+          <div style="font-size: 0.67rem; color: var(--text-faint);">Vách {spd_wall} • Ruột {spd_inf}</div>
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-size: 0.75rem;">
+          <div style="font-family: var(--font-monospace); font-weight: 700; color: var(--text-accent, var(--interactive-accent));">Bàn: {bed_t}°C</div>
+          <div style="font-size: 0.67rem; color: var(--text-faint);">Đầu {noz_t}°C • Quạt {fan}%</div>
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); font-size: 0.75rem;">
+          <div style="font-family: var(--font-monospace);">Dòng: {flow:.2f}</div>
+          <div style="font-size: 0.67rem; color: var(--text-faint);">Rút {ret}mm • Z-Hop {zh}mm</div>
+        </td>
+        <td style="padding: 0.5rem 0.6rem; text-align: center; font-size: 0.75rem; font-weight: 600;">
+          {next_html}
+        </td>
+      </tr>"""
+        rows_html.append(row)
+
+    table_body = "\n".join(rows_html)
+
+    return f"""<div class="print-log-container" style="overflow-x: auto; width: 100%; margin: 1.25rem 0; border: 1px solid var(--table-border-color); border-radius: var(--radius-m, 8px); box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+  <table class="print-log-multi-tier" style="width: 100%; border-collapse: collapse; font-size: 0.815rem; font-family: var(--font-text); background-color: var(--background-primary); border: none;">
+    <thead>
+      <!-- Tier 1: Parent Category Headers (colspan) -->
+      <tr style="background-color: var(--background-secondary); border-bottom: 2px solid var(--table-border-color); color: var(--text-normal); font-weight: 700; font-size: 0.74rem; letter-spacing: 0.04em;">
+        <th colspan="3" style="padding: 0.6rem 0.75rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 2px solid var(--table-border-color);">📋 TIẾN TRÌNH & TRẠNG THÁI</th>
+        <th colspan="5" style="padding: 0.6rem 0.75rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 2px solid var(--table-border-color); background-color: var(--background-secondary-alt, var(--background-secondary));">🟢 CẤU HÌNH CẮT LỚP (SLICER)</th>
+        <th colspan="3" style="padding: 0.6rem 0.75rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 2px solid var(--table-border-color);">⚡ PHẦN CỨNG & ĐÙN NHỰA (HARDWARE)</th>
+        <th colspan="1" style="padding: 0.6rem 0.75rem; text-align: center; border-bottom: 2px solid var(--table-border-color);">🔗 TIẾP NỐI</th>
+      </tr>
+      <!-- Tier 2: Specific Sub-headers -->
+      <tr style="background-color: var(--background-secondary); border-bottom: 1px solid var(--table-border-color); color: var(--text-muted); font-size: 0.71rem; font-weight: 600;">
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Phiên</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: left; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Thời Gian & Người In</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Trạng Thái & Sự Cố</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Lớp (mm)</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Ruột (%)</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Vách/Nóc/Đáy</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Support</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Góc (°)</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Tốc Độ F (mm/s)</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Nhiệt Độ E (°C)</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-right: 1px solid var(--table-border-color); border-bottom: 1px solid var(--table-border-color);">Đùn / Rút / Hop</th>
+        <th style="padding: 0.45rem 0.6rem; text-align: center; border-bottom: 1px solid var(--table-border-color);">Nối Tiếp</th>
+      </tr>
+    </thead>
+    <tbody>
+{table_body}
+    </tbody>
+  </table>
+</div>"""
 
 
 def build_parameter_session_matrix(entries: List[Dict[str, Any]]) -> Tuple[List[str], List[Dict[str, Any]], str]:
     """
-    Constructs the 1-table UNIFIED HORIZONTAL MATRIX:
-    - Each ROW is a Session (Phiên 01, Phiên 02, ..., Phiên N)
-    - Columns represent the 7 Areas/Layers distributed horizontally:
-      1. Phiên In & Kế thừa
-      2. Thời Gian & Người Dùng
-      3. Tiến Trình & Sự Cố
-      4. 🟢 Cấu Hình Cơ Bản (A/B/C/D)
-      5. 🟡 Vách & Vỏ
-      6. 🌲 Support & Góc Dốc
-      7. ⚡ Tốc Độ In (F)
-      8. 🔥 Nhiệt Độ & Quạt (E)
-      9. 💧 Đùn Nhựa
-      10. Tiếp Nối
+    Constructs the Multi-Tier table and returns session IDs, structured session objects, and HTML table.
     """
-    session_cols = [e.get("phien", f"{i+1:02d}") for i, e in enumerate(entries)]
-    num_sessions = len(session_cols)
-
-    table_lines: List[str] = [
-        "| Phiên In | Thời Gian & Người Dùng | Tiến Trình & Sự Cố | 🟢 Cơ Bản (A/B/C/D) | 🟡 Vách & Vỏ | 🌲 Support | ⚡ Tốc Độ (F) | 🔥 Nhiệt Độ (E) | 💧 Đùn Nhựa | Tiếp Nối |",
-        "| :---: | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |",
-    ]
-
-    json_horizontal_rows: List[Dict[str, Any]] = []
-
-    for i, e in enumerate(entries):
-        p_str = e.get("phien", f"{i+1:02d}")
-        thu_lai = e.get("thu_lai_tu_phien")
-        user_name = e.get("nguoi_dung", "Nguyễn Văn A")
-        time_str = e.get("thoi_gian", "-").replace("2026-", "")
-        act = str(e.get("hanh_dong", "-")).replace("->", "➔")
-        loi_desc = e.get("loi", "Không phát hiện lỗi")
-
-        # 1. Phiên in
-        col_phien = f"[[PHIEU_{p_str}]]"
-        if thu_lai:
-            col_phien += f"<br>*(từ [[PHIEU_{thu_lai}]])* "
-
-        # 2. Người dùng & Thời gian
-        col_user_time = f"**{user_name}**<br>`{time_str}`"
-
-        # 3. Tiến trình & Sự cố
-        if "Va chạm" in loi_desc or "Warping" in loi_desc:
-            status_badge = "⚠️ **Warping (Lớp 35)**"
-        elif "Nghẹt" in loi_desc:
-            status_badge = "⚠️ **Nghẹt đầu phun**"
-        else:
-            status_badge = "✅ **Hoàn tất (Không lỗi)**"
-        col_action_status = f"{act}<br>{status_badge}"
-
-        # 4. Khu Vực II: Cơ Bản (A/B/C/D & Preset)
-        co_ban_items = []
-        va, ma = _get_val_and_churn(e, "A_do_day_lop", "layerHeight")
-        if va:
-            co_ban_items.append(_format_cell_item("A", va, ma))
-        vb, mb = _get_val_and_churn(e, "B_canh_do", "supportMode")
-        if vb:
-            co_ban_items.append(_format_cell_item("B", vb, mb))
-        vc, mc = _get_val_and_churn(e, "C_do_rong", "infillDensity")
-        if vc:
-            co_ban_items.append(_format_cell_item("C", vc, mc))
-        vd, md = _get_val_and_churn(e, "D_vanh_bam", "brimEnabled")
-        if vd:
-            co_ban_items.append(_format_cell_item("D", vd, md))
-
-        col_co_ban = "<br>".join(co_ban_items) if co_ban_items else "*Kế thừa baseline*"
-
-        # 5. Khu Vực III: Vách & Vỏ
-        vach_items = []
-        vw, mw = _get_val_and_churn(e, "wallLoops")
-        if vw:
-            vach_items.append(f"Tường: `{vw}`")
-        vf, mf = _get_val_and_churn(e, "firstLayerHeight")
-        if vf:
-            vach_items.append(f"Lớp 1: `{vf}`")
-        vt, _ = _get_val_and_churn(e, "topShellLayers")
-        vbt, _ = _get_val_and_churn(e, "bottomShellLayers")
-        if vt and vbt:
-            vach_items.append(f"Nóc/Đáy: `{vt}/{vbt}`")
-        col_vach = "<br>".join(vach_items) if vach_items else "2 vòng • 0.20mm<br>Nóc 4 / Đáy 3"
-
-        # 6. Khu Vực IV: Support
-        sup_items = []
-        v_ts, _ = _get_val_and_churn(e, "treeStyle")
-        v_ang, _ = _get_val_and_churn(e, "supportAngleThreshold")
-        v_z, _ = _get_val_and_churn(e, "supportTopZDistance")
-        if v_ts or v_ang or v_z:
-            if v_ts:
-                sup_items.append(f"Style: `{v_ts}`")
-            if v_ang:
-                sup_items.append(f"Góc: `{v_ang}`")
-            if v_z:
-                sup_items.append(f"Top Z: `{v_z}`")
-        col_support = "<br>".join(sup_items) if sup_items else "Organic • 45°<br>Top Z: 0.20mm"
-
-        # 7. Khu Vực V: Tốc Độ In
-        speed_items = []
-        vf_spd, mf_spd = _get_val_and_churn(e, "F_toc_do_day", "printSpeed")
-        if vf_spd:
-            speed_items.append(_format_cell_item("F", vf_spd, mf_spd))
-        v_ow, _ = _get_val_and_churn(e, "outerWallSpeed")
-        if v_ow:
-            speed_items.append(f"Vách: `{v_ow}`")
-        v_inf, _ = _get_val_and_churn(e, "infillSpeed")
-        if v_inf:
-            speed_items.append(f"Ruột: `{v_inf}`")
-        col_speed = "<br>".join(speed_items) if speed_items else "**F:** `60mm/s`<br>Vách: 150 • Ruột: 275"
-
-        # 8. Khu Vực VI: Nhiệt Độ & Quạt
-        temp_items = []
-        ve_tmp, me_tmp = _get_val_and_churn(e, "E_nhiet_ban_in", "bedTemp")
-        if ve_tmp:
-            temp_items.append(_format_cell_item("E", ve_tmp, me_tmp))
-        v_noz, _ = _get_val_and_churn(e, "nozzleTemp")
-        if v_noz:
-            temp_items.append(f"Đầu: `{v_noz}`")
-        v_fan, _ = _get_val_and_churn(e, "coolingFanSpeed")
-        if v_fan:
-            temp_items.append(f"Quạt: `{v_fan}`")
-        col_temp = "<br>".join(temp_items) if temp_items else "**E:** `60°C`<br>Đầu: 210°C • Quạt: 100%"
-
-        # 9. Khu Vực VII: Đùn Nhựa
-        dun_items = []
-        v_flow, _ = _get_val_and_churn(e, "flowRateMm3s")
-        if v_flow:
-            dun_items.append(f"Dòng: `{v_flow}`")
-        v_ret, _ = _get_val_and_churn(e, "retractionDistanceMm")
-        if v_ret:
-            dun_items.append(f"Rút: `{v_ret}`")
-        v_zh, _ = _get_val_and_churn(e, "zHopMm")
-        if v_zh:
-            dun_items.append(f"Z-Hop: `{v_zh}`")
-        col_dun = "<br>".join(dun_items) if dun_items else "Dòng: 0.98<br>Rút: 0.8mm • Z-Hop 0.4"
-
-        # 10. Tiếp Nối
-        col_next = f"[[PHIEU_{entries[i+1]['phien']}]]" if i < len(entries) - 1 else "— *(Mới nhất)*"
-
-        table_lines.append(
-            f"| {col_phien} | {col_user_time} | {col_action_status} | {col_co_ban} | {col_vach} | {col_support} | {col_speed} | {col_temp} | {col_dun} | {col_next} |"
-        )
-
-        json_horizontal_rows.append({
-            "phien": p_str,
-            "nguoi_dung": user_name,
-            "thoi_gian": e.get("thoi_gian", "-"),
-            "hanh_dong": act,
-            "loi": loi_desc,
-            "co_ban": col_co_ban.replace("<br>", " | "),
-            "vach_vo": col_vach.replace("<br>", " | "),
-            "support": col_support.replace("<br>", " | "),
-            "toc_do": col_speed.replace("<br>", " | "),
-            "nhiet_do": col_temp.replace("<br>", " | "),
-            "dun_nhua": col_dun.replace("<br>", " | "),
-            "tiep_noi": col_next.replace("<br>", " "),
-        })
-
-    table_md = "\n".join(table_lines)
-    return session_cols, json_horizontal_rows, table_md
+    sessions = [convert_entry_to_print_log_session(e) for e in entries]
+    session_cols = [s["sessionId"] for s in sessions]
+    table_html = render_multi_tier_html_table(sessions)
+    return session_cols, sessions, table_html
 
 
 def render_markdown_log(entries: List[Dict[str, Any]]) -> str:
     """
-    Renders the complete minimalist nhat_ky_in.md file featuring
-    1 SINGLE COMPACT HORIZONTAL TABLE where each row is a session and columns are the 7 areas.
+    Renders nhat_ky_in.md with the Multi-Tier HTML Table and DataviewJS component.
     """
-    ma_phien = [e.get("phien", f"{i+1:02d}") for i, e in enumerate(entries)]
-    nguoi_dung = entries[0].get("nguoi_dung", "Nguyễn Văn A") if entries else "Nguyễn Văn A"
-
-    session_cols, _, horizontal_table_md = build_parameter_session_matrix(entries)
+    sessions = [convert_entry_to_print_log_session(e) for e in entries]
+    ma_phien = [s["sessionId"] for s in sessions]
+    operator = sessions[0]["operator"] if sessions else "Nguyễn Văn A"
     ma_phien_formatted = str(ma_phien).replace("'", '"')
+
+    table_html = render_multi_tier_html_table(sessions)
 
     return f"""---
 ma_phien: {ma_phien_formatted}
-nguoi_dung: "{nguoi_dung}"
+nguoi_dung: "{operator}"
 the: [printsim/nhat-ky]
 ---
 
-# 📋 Nhật Ký In Hợp Nhất — Ma Trận Phiên & Phân Vùng Cắt Lớp (Horizontal Layout)
+# 📋 Nhật Ký In Hợp Nhất — Bảng Theo Dõi Đa Tầng (Multi-Tier Log Table)
 
 > **Obsidian MOC:** [[000_PRINT_INDEX]]  
-> **Tổng số phiên theo dõi:** `{len(entries)}` (`Phiên {session_cols[0]}` ➔ `Phiên {session_cols[-1]}`)  
-> **Người thực hiện:** `{nguoi_dung}`  
-> **Bố cục hiển thị:** Bảng ngang tối ưu không gian — Mỗi phiên in là 1 hàng, phân đều 7 khu vực cắt lớp theo chiều ngang.
+> **Tổng số phiên theo dõi:** `{len(sessions)}` (`Phiên {sessions[0]['sessionId']}` ➔ `Phiên {sessions[-1]['sessionId']}`)  
+> **Người thực hiện:** `{operator}`  
+> **Kiến trúc giao diện:** Bảng phân cấp đa tầng (Multi-Tier Header with `colspan`) kết hợp CSS Variables chuẩn Obsidian, tương thích 100% Light/Dark mode.
 
 ---
 
-## 🖨️ Bảng Tổng Hợp Chi Tiết Các Phiên In (Unified Horizontal Slicer Matrix)
+## 🖨️ Bảng Theo Dõi Phiếu In Phân Cấp (Multi-Tier Slicer & Telemetry Table)
 
-{horizontal_table_md}
+{table_html}
+
+---
+
+## 💻 Truy Vấn DataviewJS Tự Động (DataviewJS Component)
+
+```dataviewjs
+// 3D PrintSim Multi-Tier DataviewJS Component
+const raw = await dv.io.load("JsonLogs/nhat_ky_in.json");
+if (raw) {{
+  const logData = JSON.parse(raw);
+  const sessionList = logData.sessions || [];
+  dv.paragraph(`> 🟢 **DataviewJS Engine:** Đã nạp thành công ${{sessionList.length}} phiếu in.`);
+}}
+```
 
 ---
 *Tự động đồng bộ và hợp nhất bởi 3D PrintSim Telemetry Engine.*

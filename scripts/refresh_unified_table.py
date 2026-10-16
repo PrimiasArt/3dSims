@@ -23,26 +23,25 @@ def main():
         data = json.load(f)
         entries = data.get("chi_tiet_tung_phien", [])
 
-    session_cols, json_matrix_rows, table_md = build_parameter_session_matrix(entries)
+    session_cols, sessions_list, table_html = build_parameter_session_matrix(entries)
 
-    matrix_payload = {
+    payload = {
         "schema_version": "v2026.1",
-        "kieu_trinh_bay": "bang_hop_nhat_phan_lop",
-        "tong_so_phien": len(entries),
-        "danh_sach_phien": session_cols,
-        "bang_tong_hop": json_matrix_rows,
-        "ma_tran_tham_so": json_matrix_rows,
+        "kieu_trinh_bay": "bang_da_tang_multi_tier",
+        "total_sessions": len(sessions_list),
+        "session_ids": session_cols,
+        "sessions": sessions_list,
         "chi_tiet_tung_phien": entries,
     }
 
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(matrix_payload, f, indent=2, ensure_ascii=False)
+        json.dump(payload, f, indent=2, ensure_ascii=False)
 
     md_content = render_markdown_log(entries)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(md_content)
 
-    print(f"SUCCESS: Regenerated {len(entries)} sessions into 1 unified layered table in {md_path}")
+    print(f"SUCCESS: Regenerated Multi-Tier Log Table for {len(sessions_list)} sessions in {md_path}")
 
 if __name__ == "__main__":
     main()
