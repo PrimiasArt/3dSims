@@ -105,7 +105,8 @@ export function buildNativeSupportMesh(data: INativeSupportData): THREE.Group {
     const ribbonArr = seg.isInterface ? interfaceRibbons : trunkRibbons;
     const w = seg.isInterface ? W_IF : W_TRUNK;
 
-    for (let i = 0; i < pts.length - 3; i += 3) {
+    const sides = 6;
+    for (let i = 0; i < pts.length - 5; i += 6) {
       const x1 = pts[i], y1 = pts[i + 1], z1 = pts[i + 2];
       const x2 = pts[i + 3], y2 = pts[i + 4], z2 = pts[i + 5];
 
@@ -115,25 +116,90 @@ export function buildNativeSupportMesh(data: INativeSupportData): THREE.Group {
       // Lưu điểm gốc bám bàn in
       if (y1 <= 0.40) basePoints.push({ x: x1, z: z1 });
 
-      // Tính dải ribbon 3D có bề rộng đùn nhựa thực tế (Extruded Ribbon Quad)
       const dx = x2 - x1;
+      const dy = y2 - y1;
       const dz = z2 - z1;
-      const len = Math.hypot(dx, dz);
-      if (len > 0.001) {
-        const nx = (-dz / len) * w;
-        const nz = (dx / len) * w;
+      const len = Math.hypot(dx, dy, dz);
+      if (len > 0.005) {
+        // Hướng tiếp tuyến trục thân cành
+        const tx = dx / len;
+        const ty = dy / len;
+        const tz = dz / len;
 
-        // Tam giác 1
-        ribbonArr.push(
-          x1 - nx, y1, z1 - nz,
-          x1 + nx, y1, z1 + nz,
-          x2 + nx, y2, z2 + nz
-        );
-        // Tam giác 2
-        ribbonArr.push(
-          x1 - nx, y1, z1 - nz,
-          x2 + nx, y2, z2 + nz,
-          x2 - nx, y2, z2 - nz
+        // Khung tọa độ Frenet vuông góc tiếp tuyến
+        let ax = 0, ay = 1, az = 0;
+        if (Math.abs(ty) > 0.92) {
+          ax = 1; ay = 0; az = 0;
+        }
+
+        let ux = ty * az - tz * ay;
+        let uy = tz * ax - tx * az;
+        let uz = tx * ay - ty * ax;
+        const uLen = Math.hypot(ux, uy, uz);
+        ux /= uLen; uy /= uLen; uz /= uLen;
+
+        const vx = ty * uz - tz * uy;
+        const vy = tz * ux - tx * uz;
+        const vz = tx * uy - ty * ux;
+
+        // Bán kính thân cây 3D thon dần từ gốc lên ngọn (Solid 3D Tube)
+        // Gốc (y1 thấp): r ~ 2.8mm - 3.5mm, ngọn (y cao): r ~ 1.4mm - 1.8mm
+        const r1 = seg.isInterface ? 2.4 : Math.max(1.3, 2.8 - Math.min(1.4, y1 * 0.02));
+        const r2 = seg.isInterface ? 2.4 : Math.max(1.3, 2.8 - Math.min(1.4, y2 * 0.02));
+
+        for (let s = 0; s < sides; s++) {
+          const a0 = (s / sides) * Math.PI * 2;
+          const a1 = ((s + 1) / sides) * Math.PI * 2;
+
+          const c0 = Math.cos(a0), s0 = Math.sin(a0);
+          const c1 = Math.cos(a1), s1 = Math.sin(a1);
+
+          // Vòng 1 quanh p1
+          const v1_0x = x1 + r1 * (c0 * ux + s0 * vx);
+          const v1_0y = y1 + r1 * (c0 * uy + s0 * vy);
+          const v1_0z = z1 + r1 * (c0 * uz + s0 * vz);
+
+          const v1_1x = x1 + r1 * (c1 * ux + s1 * vx);
+          const v1_1y = y1 + r1 * (c1 * uy + s1 * vy);
+          const v1_1z = z1 + r1 * (c1 * uz + s1 * vz);
+
+          // Vòng 2 quanh p2
+          const v2_0x = x2 + r2 * (c0 * ux + s0 * vx);
+          const v2_0y = y2 + r2 * (c0 * uy + s0 * vy);
+          const v2_0z = z2 + r2 * (c0 * uz + s0 * vz);
+
+          const v2_1x = x2 + r2 * (c1 * ux + s1 * vx);
+          const v2_1y = y2 + r2 * (c1 * uy + s1 * vy);
+          const v2_1z = z2 + r2 * (c1 * uz + s1 * vz);
+
+          // Tam giác 1
+          ribbonArr.push(
+            v1_0x, v1_0y, v1_0z,
+            v2_0x, v2_0y, v2_0z,
+            v2_1x, v2_1y, v2_1z
+          );
+          // Tam giác 2
+          ribbonArr.push(
+            v1_0x, v1_0y, v1_0z,
+            v2_1x, v2_1y, v2_1z,
+            v1_1x, v1_1y, v1_1z
+          );
+        }
+      }
+    }
+
+    // Đĩa tiếp xúc phẳng ở đỉnh cành Support Interface
+    if (seg.isInterface && pts.length >= 3) {
+      const lastIdx = pts.length - 3;
+      const cx = pts[lastIdx], cy = pts[lastIdx + 1], cz = pts[lastIdx + 2];
+      const padR = 2.6;
+      for (let s = 0; s < 12; s++) {
+        const a0 = (s / 12) * Math.PI * 2;
+        const a1 = ((s + 1) / 12) * Math.PI * 2;
+        interfaceRibbons.push(
+          cx, cy + 0.12, cz,
+          cx + Math.cos(a0) * padR, cy + 0.12, cz + Math.sin(a0) * padR,
+          cx + Math.cos(a1) * padR, cy + 0.12, cz + Math.sin(a1) * padR
         );
       }
     }
@@ -272,11 +338,12 @@ export interface IFullToolpathData {
   totalMoves: number;
   outerWalls: number[];
   innerWalls: number[];
+  infills?: number[];
   supports: number[];
   interfaces: number[];
   brims: number[];
   seams: number[];
-  layerIndexTable: number[][]; // [layerIdx] = [outerVertCount, innerVertCount, supportVertCount, interfaceVertCount, seamVertCount]
+  layerIndexTable: number[][]; // [layerIdx] = [outerVertCount, innerVertCount, infillVertCount, supportVertCount, interfaceVertCount, seamVertCount]
 }
 
 const toolpathsCache = new Map<string, IFullToolpathData>();
@@ -375,6 +442,18 @@ export function buildFullFilamentPreviewMesh(data: IFullToolpathData): THREE.Gro
   innerLines.name = 'preview_inner_walls';
   group.add(innerLines);
 
+  // 2.5 Ruột in (Sparse Infill): Vàng hổ phách Bambu Studio #f59e0b
+  const infillGeom = new THREE.BufferGeometry();
+  infillGeom.setAttribute('position', new THREE.Float32BufferAttribute(data.infills || [], 3));
+  const infillMat = new THREE.LineBasicMaterial({
+    color: 0xf59e0b, // Màu vàng hổ phách đặc trưng Bambu Studio Infill
+    transparent: true,
+    opacity: 0.88,
+  });
+  const infillLines = new THREE.LineSegments(infillGeom, infillMat);
+  infillLines.name = 'preview_infills';
+  group.add(infillLines);
+
   // 3. Tree Support
   const supGeom = new THREE.BufferGeometry();
   supGeom.setAttribute('position', new THREE.Float32BufferAttribute(data.supports, 3));
@@ -451,14 +530,22 @@ export function buildFullFilamentPreviewMesh(data: IFullToolpathData): THREE.Gro
       if (entry) {
         outerGeom.setDrawRange(0, entry[0]);
         innerGeom.setDrawRange(0, entry[1]);
-        supGeom.setDrawRange(0, entry[2]);
-        ifGeom.setDrawRange(0, entry[3]);
-        seamGeom.setDrawRange(0, entry[4]);
+        if (entry.length >= 6) {
+          infillGeom.setDrawRange(0, entry[2]);
+          supGeom.setDrawRange(0, entry[3]);
+          ifGeom.setDrawRange(0, entry[4]);
+          seamGeom.setDrawRange(0, entry[5]);
+        } else {
+          supGeom.setDrawRange(0, entry[2]);
+          ifGeom.setDrawRange(0, entry[3]);
+          seamGeom.setDrawRange(0, entry[4]);
+        }
       }
       if (clippingPlane) {
         const planes = [clippingPlane];
         outerMat.clippingPlanes = planes;
         innerMat.clippingPlanes = planes;
+        infillMat.clippingPlanes = planes;
         supMat.clippingPlanes = planes;
         ifMat.clippingPlanes = planes;
         seamMat.clippingPlanes = planes;

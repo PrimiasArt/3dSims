@@ -271,9 +271,16 @@ function generateInfillLinesInsideContours(
     }
   });
 
-  // Hướng đan chéo infill theo góc 45 độ hoặc theo pattern
-  const isCross = profile.infillType === 'grid' || profile.infillType === 'triangles';
-  const angles = isCross ? [Math.PI / 4, -Math.PI / 4] : [Math.PI / 4];
+  const infillType = profile.infillType || 'gyroid';
+  const isGyroid = infillType === 'gyroid';
+  const isTriangles = infillType === 'triangles';
+  const isCross = infillType === 'grid' || isTriangles;
+  
+  const angles = isTriangles
+    ? [Math.PI / 3, -Math.PI / 3, 0]
+    : isCross
+    ? [Math.PI / 4, -Math.PI / 4]
+    : [Math.PI / 4];
 
   angles.forEach((angle) => {
     const cosA = Math.cos(angle);
@@ -284,7 +291,7 @@ function generateInfillLinesInsideContours(
     const perpCos = -sinA;
     const perpSin = cosA;
 
-    for (let offset = -maxSpan * 0.9; offset <= maxSpan * 0.9; offset += spacing) {
+    for (let offset = -maxSpan * 0.92; offset <= maxSpan * 0.92; offset += spacing) {
       // Tia song song: bắt đầu từ điểm P0 chạy theo vector (cosA, sinA)
       const rayOriginX = midX + perpCos * offset;
       const rayOriginZ = midZ + perpSin * offset;
@@ -318,7 +325,7 @@ function generateInfillLinesInsideContours(
         const d1 = hitDistances[h];
         const d2 = hitDistances[h + 1];
         if (d2 - d1 > 0.4) {
-          // Lùi nhẹ 0.4mm vào trong để không đè lên vách Outer Perimeter
+          // Lùi nhẹ 0.35mm vào trong để không đè lên vách Outer Perimeter
           const inset = 0.35;
           const pStart: ISlicePoint = {
             x: rayOriginX + rayDirX * (d1 + inset),
@@ -328,7 +335,30 @@ function generateInfillLinesInsideContours(
             x: rayOriginX + rayDirX * (d2 - inset),
             z: rayOriginZ + rayDirZ * (d2 - inset),
           };
-          resultLines.push([pStart, pEnd]);
+
+          if (isGyroid) {
+            // Gyroid: Uốn lượn hình sin 3D theo cao độ lớp và vị trí
+            const segLen = Math.hypot(pEnd.x - pStart.x, pEnd.z - pStart.z);
+            const stepCount = Math.max(1, Math.floor(segLen / 2.0));
+            const phase = (heightY * 1.8) + offset * 0.25;
+
+            let prevPt: ISlicePoint = { ...pStart };
+            for (let s = 1; s <= stepCount; s++) {
+              const u = s / stepCount;
+              const baseX = pStart.x + u * (pEnd.x - pStart.x);
+              const baseZ = pStart.z + u * (pEnd.z - pStart.z);
+              // Độ lệch vuông góc sóng Gyroid
+              const wave = Math.sin(u * segLen * 0.45 + phase) * 1.4;
+              const curPt: ISlicePoint = {
+                x: baseX + perpCos * wave,
+                z: baseZ + perpSin * wave,
+              };
+              resultLines.push([prevPt, curPt]);
+              prevPt = curPt;
+            }
+          } else {
+            resultLines.push([pStart, pEnd]);
+          }
         }
       }
     }

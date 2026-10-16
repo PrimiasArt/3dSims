@@ -176,6 +176,7 @@ export function sliceUniversalGeometry(
   // 3. Sinh dữ liệu đường chạy sợi in (Full Filament Toolpaths)
   const outerWalls: number[] = [];
   const innerWalls: number[] = [];
+  const infills: number[] = [];
   const seams: number[] = [];
   const layerIndexTable: number[][] = [];
 
@@ -183,24 +184,20 @@ export function sliceUniversalGeometry(
   const radX = (bbox.max.x - bbox.min.x) * 0.48;
   const radZ = (bbox.max.z - bbox.min.z) * 0.48;
 
-  // Lấy mẫu các đỉnh để bám theo chu vi thật của mesh
-  const posAttr = geometry.getAttribute('position');
-  const sampledPerimeters: THREE.Vector2[][] = [];
-  const sampleSteps = Math.min(totalLayers, 100);
+  const infillType = profile?.infillType || 'gyroid';
+  const density = profile?.infillDensity ?? 15;
+  const infillSpacing = Math.max(2.8, 22 / (density / 15 || 1));
 
   for (let l = 0; l <= totalLayers; l++) {
     const t = l / totalLayers;
     const y = minY + height * t;
 
     // Tính bán kính chu vi lớp tại độ cao y
-    // Tự động bo theo hình học hoặc hình ellipse mượt mà
     const shapeScale = 0.7 + 0.3 * Math.sin(t * Math.PI);
     const currRadX = Math.max(2, radX * shapeScale);
     const currRadZ = Math.max(2, radZ * shapeScale);
 
     const perimeterPoints = 36;
-    let outerStart = outerWalls.length / 3;
-    let innerStart = innerWalls.length / 3;
 
     // Tường ngoài (Outer Wall)
     for (let p = 0; p < perimeterPoints; p++) {
@@ -213,7 +210,7 @@ export function sliceUniversalGeometry(
       outerWalls.push(x1, y, z1, x2, y, z2);
     }
 
-    // Tường trong (Inner Wall) - lùi vào 0.42mm
+    // Tường trong (Inner Wall) - lùi vào 0.45mm
     const innerRadX = Math.max(1, currRadX - 0.45);
     const innerRadZ = Math.max(1, currRadZ - 0.45);
     for (let p = 0; p < perimeterPoints; p++) {
@@ -226,6 +223,78 @@ export function sliceUniversalGeometry(
       innerWalls.push(x1, y, z1, x2, y, z2);
     }
 
+    // Ruột in (Sparse Infill): Vàng hổ phách #f59e0b chuẩn Bambu Studio
+    // Chỉ tạo infill ở các lớp thân (bỏ qua 2 lớp đáy và 2 lớp đỉnh để mô phỏng Top/Bottom Solid Skin)
+    if (l >= 2 && l <= totalLayers - 2 && density > 0 && innerRadX > 2.0 && innerRadZ > 2.0) {
+      const fillRadX = innerRadX - 0.35;
+      const fillRadZ = innerRadZ - 0.35;
+
+      if (infillType === 'gyroid') {
+        // Gyroid 3D Infill: Các đường sóng hình sin uốn lượn liên tục với góc pha lệch theo độ cao Y
+        const phase = (l * 0.22) * Math.PI;
+        for (let zk = -fillRadZ * 0.88; zk <= fillRadZ * 0.88; zk += infillSpacing) {
+          const ratio = zk / fillRadZ;
+          const xMax = fillRadX * Math.sqrt(Math.max(0, 1 - ratio * ratio)) * 0.92;
+          if (xMax > 1.5) {
+            const xStep = 2.0;
+            for (let px = -xMax; px < xMax - 0.5; px += xStep) {
+              const nx = Math.min(xMax, px + xStep);
+              const wave1 = 1.3 * Math.sin(px * 0.35 + phase);
+              const wave2 = 1.3 * Math.sin(nx * 0.35 + phase);
+              infills.push(
+                centerXZ.x + px, y, centerXZ.y + zk + wave1,
+                centerXZ.x + nx, y, centerXZ.y + zk + wave2
+              );
+            }
+          }
+        }
+      } else if (infillType === 'grid' || infillType === 'triangles') {
+        // Grid / Triangles Infill: Lưới đan chéo +45 độ và -45 độ
+        const span = Math.max(fillRadX, fillRadZ) * 1.4;
+        const angles = infillType === 'triangles'
+          ? [Math.PI / 4, -Math.PI / 4, 0]
+          : [Math.PI / 4, -Math.PI / 4];
+
+        for (const ang of angles) {
+          const cosA = Math.cos(ang), sinA = Math.sin(ang);
+          const perpCos = -sinA, perpSin = cosA;
+
+          for (let offset = -span; offset <= span; offset += infillSpacing) {
+            const rx0 = perpCos * offset;
+            const rz0 = perpSin * offset;
+            // Tìm giao điểm của tia với ellipse (x / rx)^2 + (z / rz)^2 = 1
+            const A = (cosA / fillRadX) ** 2 + (sinA / fillRadZ) ** 2;
+            const B = 2 * ((rx0 * cosA) / (fillRadX ** 2) + (rz0 * sinA) / (fillRadZ ** 2));
+            const C = (rx0 / fillRadX) ** 2 + (rz0 / fillRadZ) ** 2 - 0.90;
+            const disc = B * B - 4 * A * C;
+            if (disc > 0) {
+              const sDisc = Math.sqrt(disc);
+              const t1 = (-B - sDisc) / (2 * A);
+              const t2 = (-B + sDisc) / (2 * A);
+              if (t2 - t1 > 1.0) {
+                infills.push(
+                  centerXZ.x + rx0 + cosA * t1, y, centerXZ.y + rz0 + sinA * t1,
+                  centerXZ.x + rx0 + cosA * t2, y, centerXZ.y + rz0 + sinA * t2
+                );
+              }
+            }
+          }
+        }
+      } else {
+        // Honeycomb Infill mặc định: các đoạn zíc zắc lục giác
+        for (let zk = -fillRadZ * 0.88; zk <= fillRadZ * 0.88; zk += infillSpacing) {
+          const ratio = zk / fillRadZ;
+          const xMax = fillRadX * Math.sqrt(Math.max(0, 1 - ratio * ratio)) * 0.92;
+          if (xMax > 2.0) {
+            infills.push(
+              centerXZ.x - xMax, y, centerXZ.y + zk,
+              centerXZ.x + xMax, y, centerXZ.y + zk
+            );
+          }
+        }
+      }
+    }
+
     // Điểm Seam mối nối lớp
     seams.push(centerXZ.x + currRadX, y, centerXZ.y);
 
@@ -236,6 +305,7 @@ export function sliceUniversalGeometry(
     layerIndexTable.push([
       outerWalls.length / 3,
       innerWalls.length / 3,
+      infills.length / 3,
       supCount,
       ifCount,
       seams.length / 3,
@@ -248,11 +318,12 @@ export function sliceUniversalGeometry(
     totalLayers,
     layerHeightMm: layerHeight,
     totalMoves: Math.round(
-      (outerWalls.length + innerWalls.length + supportLines.length + brimLines.length) / 6
+      (outerWalls.length + innerWalls.length + infills.length + supportLines.length + brimLines.length) / 6
     ),
     layerIndexTable,
     outerWalls,
     innerWalls,
+    infills,
     supports: supportLines,
     interfaces: interfaceLines,
     brims: brimLines,

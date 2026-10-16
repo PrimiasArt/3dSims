@@ -131,8 +131,8 @@ export function detectOverhangPatches(
     }
   });
 
-  // Sắp xếp các patch theo độ nghiêm trọng và diện tích
-  return patches.sort((a, b) => b.areaMm2 - a.areaMm2).slice(0, 20);
+  // Sắp xếp các patch theo độ nghiêm trọng và diện tích (Hỗ trợ toàn bộ vùng overhang phức tạp của mô hình)
+  return patches.sort((a, b) => b.areaMm2 - a.areaMm2).slice(0, 80);
 }
 
 // =========================================================================
@@ -281,7 +281,7 @@ export function generateBambuSupportStructures(
   overhangThreshold: number = 45
 ): THREE.Group {
   const supportGroup = new THREE.Group();
-  supportGroup.name = 'bambu_tree_support_group';
+  supportGroup.name = 'support_structures_group';
 
   if (profile.supportMode === 'none') {
     return supportGroup;

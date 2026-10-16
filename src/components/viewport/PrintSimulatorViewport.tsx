@@ -564,27 +564,7 @@ export function PrintSimulatorViewport({
     const parentGroup = modelRootGroupRef.current;
     if (!parentGroup || !sceneRef.current) return;
 
-    // 1. Nạp và đính kèm Tree Support Native
-    if (profile.supportMode !== 'none') {
-      loadNativeBambuSupport(currentModel?.name || currentModel?.id, (currentModel as any)?.path).then((nativeData) => {
-        if (!modelRootGroupRef.current) return;
-        const curSupportGroup = modelRootGroupRef.current.getObjectByName('support_structures_group');
-        if (curSupportGroup && nativeData && nativeData.segments && nativeData.segments.length > 0) {
-          while (curSupportGroup.children.length > 0) {
-            const c = curSupportGroup.children[0];
-            curSupportGroup.remove(c);
-            if (c instanceof THREE.Mesh || c instanceof THREE.LineSegments) {
-              c.geometry?.dispose();
-              if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
-              else c.material?.dispose();
-            }
-          }
-          const nativeLines = buildNativeSupportMesh(nativeData);
-          nativeLines.name = 'native_bambu_toolpaths';
-          curSupportGroup.add(nativeLines);
-        }
-      });
-    }
+    // Full Filament Toolpaths Preview nạp cho chế độ xem trước sợi in Bambu Studio
 
     // 2. Nạp và đính kèm Full Filament Toolpaths Preview
     loadFullBambuToolpaths(currentModel?.name || currentModel?.id, (currentModel as any)?.path).then((toolpathsData) => {
@@ -1116,6 +1096,10 @@ export function PrintSimulatorViewport({
                 <span className="text-white/80 truncate">Tường trong</span>
               </div>
               <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-[#f59e0b] shadow-[0_0_8px_rgba(245,158,11,0.6)] shrink-0" />
+                <span className="text-amber-300 font-bold truncate">Ruột Infill ({profile.infillDensity}%)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-sm bg-[#10b981] shrink-0" />
                 <span className="text-emerald-300 font-bold truncate">Tree Support</span>
               </div>
@@ -1127,7 +1111,7 @@ export function PrintSimulatorViewport({
                 <span className="w-2.5 h-2.5 rounded-sm bg-[#c026d3] shrink-0" />
                 <span className="text-purple-300 truncate">Vành Brim</span>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 col-span-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#ffffff] ring-1 ring-white/60 shrink-0" />
                 <span className="text-white font-bold truncate">Mối nối Seam</span>
               </div>
@@ -1672,35 +1656,11 @@ function updateSupportStructures(
     parent.add(brimMesh);
   }
 
-  // 2. Cấu trúc Tree Support chính thức từ Bambu Studio CLI
+  // 2. Cấu trúc Tree Support 3D hữu cơ hoàn mỹ chuẩn Bambu Studio (Solid Organic Mesh)
   if (profile.supportMode !== 'none' && visible) {
-    const supportGroup = new THREE.Group();
+    const supportGroup = generateBambuSupportStructures(geometry, profile);
     supportGroup.name = 'support_structures_group';
     parent.add(supportGroup);
-
-    // Tự động nạp đường chạy dao Tree Support G-code Native chính thức từ Bambu Studio CLI
-    loadNativeBambuSupport(modelIdentifier, modelPath).then((nativeData) => {
-      if (parent.getObjectByName('support_structures_group') !== supportGroup) return;
-
-      if (nativeData && nativeData.segments && nativeData.segments.length > 0) {
-        // Xóa bất kỳ mesh cũ nào còn sót
-        while (supportGroup.children.length > 0) {
-          const child = supportGroup.children[0];
-          supportGroup.remove(child);
-          if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
-            child.geometry?.dispose();
-            if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
-            else child.material?.dispose();
-          }
-        }
-
-        // Dựng 100% cấu trúc Organic Tree Support chính thức từ Bambu Studio
-        const nativeLines = buildNativeSupportMesh(nativeData);
-        nativeLines.name = 'native_bambu_toolpaths';
-        supportGroup.add(nativeLines);
-      }
-    });
-
     return supportGroup;
   }
 

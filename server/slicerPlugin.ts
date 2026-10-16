@@ -332,6 +332,7 @@ export interface IFullToolpathData {
   totalMoves: number;
   outerWalls: number[];
   innerWalls: number[];
+  infills?: number[];
   supports: number[];
   interfaces: number[];
   brims: number[];
@@ -354,13 +355,14 @@ export function extractFullToolpathsFromGCode(
 
   const outerWalls: number[] = [];
   const innerWalls: number[] = [];
+  const infills: number[] = [];
   const supports: number[] = [];
   const interfaces: number[] = [];
   const brims: number[] = [];
   const seams: number[] = [];
 
   const layerIndexTable: number[][] = [];
-  layerIndexTable[0] = [0, 0, 0, 0, 0];
+  layerIndexTable[0] = [0, 0, 0, 0, 0, 0];
 
   let isNewOuterLoop = true;
 
@@ -373,6 +375,7 @@ export function extractFullToolpathsFromGCode(
       layerIndexTable[curLayer] = [
         outerWalls.length / 3,
         innerWalls.length / 3,
+        infills.length / 3,
         supports.length / 3,
         interfaces.length / 3,
         seams.length / 3,
@@ -416,6 +419,8 @@ export function extractFullToolpathsFromGCode(
             }
           } else if (curFeature.includes('Inner wall')) {
             innerWalls.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+          } else if (curFeature.includes('infill') || curFeature.includes('Infill')) {
+            infills.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
           } else if (curFeature.includes('Support interface')) {
             interfaces.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
           } else if (curFeature.includes('Support') || curFeature.includes('Tree')) {
@@ -437,6 +442,7 @@ export function extractFullToolpathsFromGCode(
   layerIndexTable[curLayer + 1] = [
     outerWalls.length / 3,
     innerWalls.length / 3,
+    infills.length / 3,
     supports.length / 3,
     interfaces.length / 3,
     seams.length / 3,
@@ -447,9 +453,10 @@ export function extractFullToolpathsFromGCode(
     engine: 'bambu_studio',
     totalLayers: curLayer,
     layerHeightMm: 0.20,
-    totalMoves: (outerWalls.length + innerWalls.length + supports.length + interfaces.length + brims.length) / 6,
+    totalMoves: (outerWalls.length + innerWalls.length + infills.length + supports.length + interfaces.length + brims.length) / 6,
     outerWalls,
     innerWalls,
+    infills,
     supports,
     interfaces,
     brims,
