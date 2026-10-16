@@ -10,6 +10,8 @@ import {
   IModelTransform,
   ISampleModel,
   ViewportDisplayMode,
+  SimulatorEngineType,
+  IProSlicerTelemetry,
 } from '@/types/simulator';
 import { ISlicingMetrics } from '@/services/slicingEngine';
 import { generateDefect3DGroup, getActiveDefectAlert } from '@/services/defectSimulation';
@@ -23,17 +25,16 @@ import {
   buildFullFilamentPreviewMesh,
 } from '@/services/nativeSupportLoader';
 import { BuildPlateToolbar } from './BuildPlateToolbar';
+import { ProSlicerTelemetryPanel } from '@/components/controls/ProSlicerTelemetryPanel';
 import {
-  Flame,
-  AlertTriangle,
-  Sparkles,
-  Wand2,
-  ChevronUp,
-  ChevronDown,
-  UploadCloud,
-  CheckCircle2,
-  X,
-} from 'lucide-react';
+  IconAngle,
+  IconChevronUp,
+  IconChevronDown,
+  IconImport,
+  IconCheckShield,
+  IconClose,
+  IconSliders,
+} from '@/components/icons/MinimalIcons';
 
 interface PrintSimulatorViewportProps {
   geometry: THREE.BufferGeometry;
@@ -60,6 +61,12 @@ interface PrintSimulatorViewportProps {
   onRegisterCaptureSnapshot?: (fn: () => string | null) => void;
   isSmoothTimelapseActive?: boolean;
   currentModel?: ISampleModel;
+  theme?: 'dark' | 'light';
+  onOpenReportModal?: () => void;
+  simulatorEngine?: SimulatorEngineType;
+  proTelemetry?: IProSlicerTelemetry;
+  gcodeLines?: string[];
+  isProfileOpen?: boolean;
 }
 
 export function PrintSimulatorViewport({
@@ -87,6 +94,12 @@ export function PrintSimulatorViewport({
   onRegisterCaptureSnapshot,
   isSmoothTimelapseActive,
   currentModel,
+  theme = 'dark',
+  onOpenReportModal,
+  simulatorEngine = 'wasm_client',
+  proTelemetry,
+  gcodeLines = [],
+  isProfileOpen = true,
 }: PrintSimulatorViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -144,6 +157,14 @@ export function PrintSimulatorViewport({
     setIsDefectDismissed(false);
   }, [simulationState.currentLayer]);
 
+  // Đồng bộ màu nền 3D Canvas & Fog theo Dark / Softened Light Mode (0xc9c6be)
+  useEffect(() => {
+    if (!sceneRef.current) return;
+    const bgHex = theme === 'light' ? 0xc9c6be : 0x0b0c0e;
+    sceneRef.current.background = new THREE.Color(bgHex);
+    sceneRef.current.fog = new THREE.FogExp2(bgHex, 0.0014);
+  }, [theme]);
+
   // 1. Khởi tạo Three.js Scene, Camera, Lights, Bed
   useEffect(() => {
     if (!containerRef.current) return;
@@ -153,8 +174,9 @@ export function PrintSimulatorViewport({
 
     // 1.1 Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x080a10);
-    scene.fog = new THREE.FogExp2(0x080a10, 0.0018);
+    const initialBgHex = theme === 'light' ? 0xc9c6be : 0x0b0c0e;
+    scene.background = new THREE.Color(initialBgHex);
+    scene.fog = new THREE.FogExp2(initialBgHex, 0.0014);
     sceneRef.current = scene;
     (window as any).__scene = scene;
 
@@ -1039,7 +1061,7 @@ export function PrintSimulatorViewport({
 
   return (
     <div
-      className="relative w-full h-full overflow-hidden select-none bg-[#070a10]"
+      className="relative w-full h-full overflow-hidden select-none bg-[var(--bg-canvas)] transition-colors duration-300"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1053,7 +1075,7 @@ export function PrintSimulatorViewport({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* 1. Bảng Điều Khiển Đặt Bàn In (Chỉ hiển thị khi ở chế độ 🛠️ Chuẩn Bị để không che vùng nhìn mô phỏng) */}
+      {/* 1. Bảng Điều Khiển Đặt Bàn In (Chỉ hiển thị khi ở chế độ Chuẩn Bị) */}
       {viewMode === 'prepare' && (
         <BuildPlateToolbar
           transform={modelTransform}
@@ -1066,47 +1088,114 @@ export function PrintSimulatorViewport({
         />
       )}
 
+      {/* 1.5. Centerpiece Printability Score & Technical Assessment Bar (Đặt giữa màn hình nhấn mạnh khả năng đánh giá) */}
+      <div
+        data-testid="center-printability-score-hud"
+        className={`absolute ${
+          viewMode === 'prepare' ? 'top-29' : 'top-16'
+        } ${
+          isProfileOpen ? 'left-[58%]' : 'left-1/2'
+        } -translate-x-1/2 z-20 pointer-events-auto transition-all duration-300`}
+      >
+        <div
+          onClick={onOpenReportModal}
+          className="px-3.5 py-2 rounded-2xl glass-panel hover:border-[var(--accent-gold)] flex items-center gap-3 cursor-pointer group transition-all shadow-xl"
+          title="Nhấn để xem Báo Cáo Kiểm Định Khả Năng In 3D & Chẩn Đoán Kỹ Thuật Chi Tiết"
+        >
+          {/* Prominent Score Badge */}
+          <div
+            className={`px-2.5 py-1 rounded-xl font-mono flex items-center gap-1.5 border ${
+              preflightReport.printabilityScore >= 80
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35'
+                : preflightReport.printabilityScore >= 50
+                ? 'bg-amber-500/15 text-amber-400 border-amber-500/35'
+                : 'bg-rose-500/15 text-rose-400 border-rose-500/35'
+            }`}
+          >
+            <IconCheckShield size={15} />
+            <div className="leading-none">
+              <span className="text-sm font-black">{preflightReport.printabilityScore}</span>
+              <span className="text-[9px] opacity-75">/100</span>
+            </div>
+          </div>
+
+          {/* Assessment Summary & Live Diagnostics */}
+          <div className="leading-tight pr-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider studio-text-primary">
+                {preflightReport.printabilityScore >= 80
+                  ? 'Đạt Chuẩn An Toàn In 3D'
+                  : preflightReport.printabilityScore >= 50
+                  ? 'Cần Tối Ưu Thông Số In'
+                  : 'Cảnh Báo Nguy Cơ Lỗi Cao'}
+              </span>
+              {preflightReport.errors.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 font-mono text-[9px] font-bold">
+                  {preflightReport.errors.length} cảnh báo
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 text-[10px] font-mono studio-text-secondary mt-0.5">
+              <span>
+                Overhang: <strong className="studio-text-gold">{preflightReport.overhangRiskAreaPercent}%</strong>
+              </span>
+              <span>•</span>
+              <span>
+                Support:{' '}
+                <strong className="studio-text-primary uppercase">
+                  {profile.supportMode === 'none' ? 'Tắt' : profile.supportMode}
+                </strong>
+              </span>
+              <span className="studio-text-gold font-sans font-semibold group-hover:underline ml-1">
+                Chẩn đoán →
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Drag & Drop Overlay */}
       {isDraggingFile && (
-        <div className="absolute inset-0 z-40 bg-teal-950/80 backdrop-blur-md flex flex-col items-center justify-center border-4 border-dashed border-teal-400 m-4 rounded-3xl animate-in fade-in">
-          <UploadCloud className="w-16 h-16 text-teal-300 animate-bounce mb-3" />
-          <h2 className="text-xl font-black text-white">Thả file 3MF / STL / OBJ vào đây</h2>
-          <p className="text-sm text-teal-200 mt-1">Hệ thống sẽ tự động bóc tách lớp và dựng Tree Support ngay</p>
+        <div className="absolute inset-0 z-40 glass-panel flex flex-col items-center justify-center border-2 border-dashed border-[var(--accent-gold)] m-4 rounded-3xl animate-in fade-in">
+          <IconImport className="w-14 h-14 text-[var(--accent-gold)] animate-bounce mb-3" />
+          <h2 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">Thả file 3MF / STL / OBJ vào đây</h2>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">Hệ thống sẽ tự động bóc tách lớp và dựng Tree Support ngay</p>
         </div>
       )}
 
       {/* 2. Custom Full-Height Vertical Layer Scrubber (Chỉ hiện ở chế độ Mô Phỏng CAD / Sợi In Bambu) */}
       {viewMode !== 'prepare' && (
-        <div className="absolute right-3.5 top-16 bottom-24 z-20 flex flex-col items-center justify-between py-2.5 px-1.5 rounded-2xl glass-panel border border-white/15 pointer-events-auto w-12">
+        <div className="absolute right-3.5 top-16 bottom-24 z-20 flex flex-col items-center justify-between py-2.5 px-1.5 rounded-2xl glass-panel pointer-events-auto w-12">
           <button
             onClick={() => onStepLayer(10)}
-            className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="p-1 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
             title="Tăng 10 lớp (+10 Layers)"
           >
-            <ChevronUp className="w-4 h-4" />
+            <IconChevronUp className="w-4 h-4" />
           </button>
 
           {/* Full-Height Custom Vertical Track */}
           <div className="relative flex-1 w-full my-2 flex justify-center">
             {/* Background Track Rail */}
-            <div className="relative w-2 h-full rounded-full bg-white/10 border border-white/10 overflow-hidden">
+            <div className="relative w-1.5 h-full rounded-full bg-[var(--bg-subtle)] border border-[var(--border-hairline)] overflow-hidden">
               {/* Active Fill Bar from bottom */}
               <div
-                className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-teal-500 to-emerald-400 rounded-full transition-all duration-75"
+                className="absolute bottom-0 left-0 right-0 bg-[var(--accent-gold)] rounded-full transition-all duration-75"
                 style={{ height: `${layerPercent}%` }}
               />
               {/* Reference Tick Marks (25%, 50%, 75%) */}
-              <div className="absolute bottom-1/4 left-0 right-0 h-[1px] bg-white/25" />
-              <div className="absolute bottom-2/4 left-0 right-0 h-[1px] bg-white/25" />
-              <div className="absolute bottom-3/4 left-0 right-0 h-[1px] bg-white/25" />
+              <div className="absolute bottom-1/4 left-0 right-0 h-[1px] bg-[var(--border-strong)]" />
+              <div className="absolute bottom-2/4 left-0 right-0 h-[1px] bg-[var(--border-strong)]" />
+              <div className="absolute bottom-3/4 left-0 right-0 h-[1px] bg-[var(--border-strong)]" />
             </div>
 
             {/* Visual Thumb Handle + Floating Z-Height Tooltip */}
             <div
-              className="pointer-events-none absolute left-1/2 -translate-x-1/2 w-5 h-3 rounded-md bg-emerald-400 border-2 border-white shadow-[0_0_12px_rgba(52,211,153,0.9)] transition-all duration-75 flex items-center justify-center"
-              style={{ bottom: `calc(${layerPercent}% - 6px)` }}
+              className="pointer-events-none absolute left-1/2 -translate-x-1/2 w-4 h-2.5 rounded-sm bg-[var(--text-primary)] border border-[var(--accent-gold)] shadow-md transition-all duration-75 flex items-center justify-center"
+              style={{ bottom: `calc(${layerPercent}% - 5px)` }}
             >
-              <div className="absolute right-7 px-2 py-0.5 rounded-md bg-slate-950/95 border border-emerald-400/40 text-[10px] font-mono font-bold text-emerald-300 whitespace-nowrap shadow-lg">
+              <div className="absolute right-6 px-2 py-0.5 rounded-md glass-panel border border-[var(--accent-gold-border)] text-[10px] font-mono font-bold text-[var(--accent-gold)] whitespace-nowrap shadow-lg">
                 L{simulationState.currentLayer} • {currentZMm}mm
               </div>
             </div>
@@ -1129,37 +1218,37 @@ export function PrintSimulatorViewport({
           </div>
 
           <div className="text-center font-mono leading-tight">
-            <div className="text-[10px] text-emerald-300 font-black">L{simulationState.currentLayer}</div>
-            <div className="text-[8px] text-slate-400">/{simulationState.totalLayers}</div>
+            <div className="text-[10px] text-[var(--text-primary)] font-bold">L{simulationState.currentLayer}</div>
+            <div className="text-[8px] text-[var(--text-muted)]">/{simulationState.totalLayers}</div>
           </div>
 
           <button
             onClick={() => onStepLayer(-10)}
-            className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-all cursor-pointer mt-1"
+            className="p-1 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all cursor-pointer mt-1"
             title="Lùi 10 lớp (-10 Layers)"
           >
-            <ChevronDown className="w-4 h-4" />
+            <IconChevronDown className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* 3. Unified Right Studio HUD Stack (Camera View Presets + Slicing Result + Overhang Scale — Không chồng chéo) */}
+      {/* 3. Unified Right Studio HUD Stack (Camera View Presets + Slicing Result + Overhang Scale + Pro Slicer Local — Không chồng chéo) */}
       <div
         className={`absolute top-16 ${
           viewMode === 'prepare' ? 'right-4' : 'right-18'
-        } z-10 flex flex-col items-end gap-2 pointer-events-auto select-none transition-all`}
+        } z-10 flex flex-col items-end gap-2 pointer-events-auto select-none transition-all max-h-[calc(100vh-175px)] overflow-y-auto`}
       >
         {/* 3.1 Quick Camera Orientation Bar (3D ViewCube Presets) */}
         {onSetCameraView && (
-          <div className="flex items-center gap-0.5 p-1 rounded-xl glass-panel border border-white/15">
+          <div className="flex items-center gap-0.5 p-1 rounded-xl glass-panel shrink-0">
             {(['iso', 'front', 'top', 'nozzle'] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => onSetCameraView(v)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   cameraView === v
-                    ? 'bg-teal-400 text-slate-950 font-extrabold shadow-xs'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    ? 'studio-pill-active'
+                    : 'studio-pill-inactive'
                 }`}
                 title={`Góc nhìn Camera: ${v.toUpperCase()}`}
               >
@@ -1173,78 +1262,78 @@ export function PrintSimulatorViewport({
         {viewMode !== 'prepare' && (
           <>
             {showSlicingLegend ? (
-              <div className="w-64 rounded-2xl glass-panel border border-white/15 p-3.5 shadow-2xl text-xs space-y-2.5 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <div className="w-64 rounded-2xl glass-panel p-3 text-xs space-y-2 animate-in fade-in duration-150 shrink-0">
+                <div className="flex items-center justify-between border-b studio-border pb-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#00e050] animate-pulse" />
-                    <span className="font-extrabold text-white text-xs tracking-wide">Slicing Result</span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-gold)]" />
+                    <span className="font-bold text-[var(--text-primary)] text-[10px] uppercase tracking-wider">Slicing Result</span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded studio-gold-badge font-semibold">
                       {viewMode === 'filament_preview' ? 'G-Code' : 'CAD Slice'}
                     </span>
                   </div>
                   <button
                     onClick={() => setShowSlicingLegend(false)}
-                    className="text-slate-400 hover:text-white p-0.5 rounded transition-colors cursor-pointer"
+                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] p-0.5 rounded transition-colors cursor-pointer"
                     title="Thu gọn bảng thông số"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <IconClose className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 {/* Color Scheme Legend */}
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10px] font-medium">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] font-medium">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#00e050] shrink-0" />
-                    <span className="text-slate-200 font-semibold truncate">Tường ngoài</span>
+                    <span className="w-2 h-2 rounded-xs bg-[#00e050] shrink-0" />
+                    <span className="text-[var(--text-primary)] font-semibold truncate">Tường ngoài</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#047857] shrink-0" />
-                    <span className="text-slate-300 truncate">Tường trong</span>
+                    <span className="w-2 h-2 rounded-xs bg-[#047857] shrink-0" />
+                    <span className="text-[var(--text-secondary)] truncate">Tường trong</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#f59e0b] shrink-0" />
-                    <span className="text-amber-300 font-semibold truncate">
+                    <span className="w-2 h-2 rounded-xs bg-[#f59e0b] shrink-0" />
+                    <span className="text-[var(--text-primary)] font-semibold truncate">
                       Ruột ({profile.infillDensity}%)
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#10b981] shrink-0" />
-                    <span className="text-emerald-300 font-semibold truncate">Tree Support</span>
+                    <span className="w-2 h-2 rounded-xs bg-[#10b981] shrink-0" />
+                    <span className="text-[var(--text-primary)] font-semibold truncate">Tree Support</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#d946ef] shrink-0" />
-                    <span className="text-fuchsia-300 truncate">Mặt tiếp xúc</span>
+                    <span className="w-2 h-2 rounded-xs bg-[#d946ef] shrink-0" />
+                    <span className="text-[var(--text-secondary)] truncate">Mặt tiếp xúc</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-white ring-1 ring-white/50 shrink-0" />
-                    <span className="text-slate-200 truncate">Mối nối Seam</span>
+                    <span className="w-2 h-2 rounded-full bg-white ring-1 ring-black/20 shrink-0" />
+                    <span className="text-[var(--text-secondary)] truncate">Mối nối Seam</span>
                   </div>
                 </div>
 
                 {/* Real Dynamic Filament & Support Weight Breakdown */}
-                <div className="border-t border-white/10 pt-2 space-y-1 font-mono text-[10px]">
-                  <div className="flex items-center justify-between text-slate-300">
+                <div className="border-t studio-border pt-1.5 space-y-0.5 font-mono text-[10px]">
+                  <div className="flex items-center justify-between text-[var(--text-secondary)]">
                     <span>Phôi in (Model):</span>
-                    <span className="text-white font-bold">{modelGrams} g</span>
+                    <span className="text-[var(--text-primary)] font-bold">{modelGrams} g</span>
                   </div>
-                  <div className="flex items-center justify-between text-emerald-400">
+                  <div className="flex items-center justify-between text-[var(--text-secondary)]">
                     <span>Cây đỡ (Support):</span>
-                    <span className="font-bold">{supportGrams} g</span>
+                    <span className="text-[var(--text-primary)] font-bold">{supportGrams} g</span>
                   </div>
-                  <div className="flex items-center justify-between text-teal-300 pt-1 border-t border-white/5">
+                  <div className="flex items-center justify-between text-[var(--accent-gold)] pt-1 border-t studio-border">
                     <span className="font-bold">Tổng Nhựa:</span>
-                    <span className="font-black text-[11px]">
+                    <span className="font-bold text-[11px]">
                       {totalGrams.toFixed(1)} g ({totalMeters}m)
                     </span>
                   </div>
                 </div>
 
-                {/* Integrated Live Z-Height & Active Extrusion Task (Replaces bottom-left floating box) */}
-                <div className="border-t border-white/10 pt-2 flex items-center justify-between text-[10px] font-mono">
-                  <div className="text-slate-400">
-                    Z: <strong className="text-teal-300">{currentZMm}mm</strong>
+                {/* Integrated Live Z-Height & Active Extrusion Task */}
+                <div className="border-t studio-border pt-1.5 flex items-center justify-between text-[10px] font-mono">
+                  <div className="text-[var(--text-muted)]">
+                    Z: <strong className="text-[var(--text-primary)]">{currentZMm}mm</strong>
                   </div>
-                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-amber-300 font-bold uppercase text-[9px]">
+                  <span className="px-1.5 py-0.5 rounded studio-gold-badge font-bold uppercase text-[9px]">
                     {simulationState.activeToolpathType === 'perimeter'
                       ? 'Wall'
                       : simulationState.activeToolpathType === 'infill'
@@ -1258,57 +1347,68 @@ export function PrintSimulatorViewport({
             ) : (
               <button
                 onClick={() => setShowSlicingLegend(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-panel border border-white/15 text-white hover:border-teal-400/50 text-xs font-bold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-panel text-[var(--text-primary)] hover:border-[var(--accent-gold)] text-xs font-semibold transition-all cursor-pointer shrink-0"
                 title="Mở bảng chú giải màu & khối lượng nhựa Bambu Studio"
               >
-                <span className="w-2 h-2 rounded-full bg-[#00e050]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-gold)]" />
                 <span>Slicing Result</span>
               </button>
             )}
           </>
         )}
 
-        {/* 3.3 Overhang Heatmap Scale Indicator (Stacks cleanly underneath Slicing Result without overlap) */}
+        {/* 3.3 Overhang Heatmap Scale Indicator */}
         {(showHeatmap || renderMode === 'defects') && (
-          <div className="w-64 p-3 rounded-2xl glass-panel-danger border border-rose-500/40 text-xs space-y-1.5 shadow-2xl animate-in fade-in">
-            <div className="flex items-center gap-1.5 font-bold text-rose-300">
-              <Flame className="w-3.5 h-3.5 text-rose-400" />
+          <div className="w-64 p-2.5 rounded-2xl glass-panel-danger text-xs space-y-1 shadow-2xl animate-in fade-in shrink-0">
+            <div className="flex items-center gap-1.5 font-bold text-rose-400 text-[11px]">
+              <IconAngle className="w-3.5 h-3.5" />
               <span>Thước Đo Góc Overhang</span>
             </div>
-            <div className="space-y-1 text-[10px]">
+            <div className="space-y-0.5 text-[10px] text-[var(--text-secondary)]">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-[#EF4444] shrink-0" />
                 <span>Góc &gt; 50° (Cần nhánh Tree Support)</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-[#F59E0B] shrink-0" />
                 <span>Góc 40° – 50° (Nguy cơ nhăn mép)</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#2DD4BF] shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-[#2DD4BF] shrink-0" />
                 <span>Góc &lt; 40° (Tự đỡ an toàn)</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 3.4 Engine 2: Pro Slicer Local Telemetry Card (Được chuyển sang cột HUD bên phải để không bị che bởi Menu trái) */}
+        {simulatorEngine === 'pro_local' && proTelemetry && (
+          <div className="shrink-0">
+            <ProSlicerTelemetryPanel
+              telemetry={proTelemetry}
+              state={simulationState}
+              gcodeLines={gcodeLines}
+            />
           </div>
         )}
       </div>
 
       {/* 4. Live Defect Alert Card (Góc dưới bên phải - Không đè thanh công cụ) */}
       {activeDefect && !isDefectDismissed && viewMode !== 'prepare' && (
-        <div className="absolute bottom-28 right-18 max-w-sm z-20 pointer-events-auto p-3.5 rounded-2xl bg-rose-950/95 border border-rose-500/60 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-200">
+        <div className="absolute bottom-28 right-18 max-w-sm z-20 pointer-events-auto p-3.5 rounded-2xl glass-panel-danger text-[var(--text-primary)] shadow-2xl animate-in slide-in-from-bottom duration-200">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-2.5">
-              <div className="p-1.5 rounded-xl bg-rose-500/25 text-rose-300 shrink-0">
-                <AlertTriangle className="w-4 h-4 text-rose-400 animate-pulse" />
+              <div className="p-1.5 rounded-xl bg-rose-500/15 text-rose-400 shrink-0">
+                <IconAngle className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-[11px] font-black uppercase text-rose-300 tracking-wide flex items-center gap-1.5">
+                <div className="text-[11px] font-bold uppercase text-rose-400 tracking-wide flex items-center gap-1.5">
                   <span>{activeDefect.title}</span>
-                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-500/35 text-rose-100">
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300">
                     Lớp {activeDefect.layer}
                   </span>
                 </div>
-                <p className="text-[11px] text-rose-100/90 mt-0.5 leading-snug">{activeDefect.message}</p>
+                <p className="text-[11px] text-[var(--text-secondary)] mt-0.5 leading-snug">{activeDefect.message}</p>
               </div>
             </div>
 
@@ -1316,19 +1416,19 @@ export function PrintSimulatorViewport({
               {activeDefect.autoFixAction && (
                 <button
                   onClick={() => handleExecuteAutoFix(activeDefect.autoFixAction!)}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 font-black text-[11px] transition-all active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg studio-cta-primary font-bold text-[11px] transition-all active:scale-95 cursor-pointer"
                   title="Tự động áp dụng cấu hình khắc phục"
                 >
-                  <Wand2 className="w-3 h-3" />
-                  <span>AI Sửa</span>
+                  <IconSliders className="w-3 h-3" />
+                  <span>Tối Ưu</span>
                 </button>
               )}
               <button
                 onClick={() => setIsDefectDismissed(true)}
-                className="p-1 rounded-lg text-rose-300 hover:text-white hover:bg-rose-900/50 transition-all cursor-pointer"
+                className="p-1 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all cursor-pointer"
                 title="Đóng cảnh báo"
               >
-                <X className="w-3.5 h-3.5" />
+                <IconClose className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1337,8 +1437,8 @@ export function PrintSimulatorViewport({
 
       {/* Auto-Fix Success Notice Toast */}
       {fixedNotice && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-2xl flex items-center gap-2 animate-in zoom-in-95">
-          <CheckCircle2 className="w-4 h-4 fill-current" />
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl studio-cta-primary font-bold text-xs shadow-2xl flex items-center gap-2 animate-in zoom-in-95">
+          <IconCheckShield className="w-4 h-4" />
           <span>{fixedNotice}</span>
         </div>
       )}

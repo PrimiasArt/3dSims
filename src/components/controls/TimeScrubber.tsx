@@ -1,15 +1,12 @@
 import React from 'react';
 import {
-  Play,
-  Pause,
-  RotateCcw,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Weight,
-  Sparkles,
-  Layers,
-} from 'lucide-react';
+  IconPlay,
+  IconPause,
+  IconReset,
+  IconChevronLeft,
+  IconChevronRight,
+  IconLayers,
+} from '@/components/icons/MinimalIcons';
 import { ISimulationState, PlaybackSpeed, IPreflightError } from '@/types/simulator';
 import { formatPrintTime } from '@/services/slicingEngine';
 
@@ -39,25 +36,25 @@ export function TimeScrubber({
   const percent = state.isCompleted ? 100 : Math.min(99, Math.round(state.currentProgress * 100));
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-2.5 rounded-2xl glass-panel border border-white/15 shadow-2xl space-y-2">
-      {/* Row 1: Scrubber Track with Interactive Progress Bar & Defect Tick Markers */}
+    <div className="w-full max-w-4xl mx-auto px-4 py-2.5 rounded-2xl glass-panel space-y-2">
+      {/* Row 1: Scrubber Track with Progress Fill & Defect Markers */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-teal-300 shrink-0 min-w-[88px]">
-          <Layers className="w-3.5 h-3.5 text-teal-400" />
+        <div className="flex items-center gap-1.5 text-[11px] font-mono font-semibold studio-text-primary shrink-0 min-w-[88px]">
+          <IconLayers size={12} className="studio-text-gold" />
           <span>
             L{state.currentLayer}
-            <span className="text-slate-500 font-normal">/{state.totalLayers}</span>
+            <span className="studio-text-muted font-normal">/{state.totalLayers}</span>
           </span>
         </div>
 
         <div className="relative flex-1 flex items-center">
-          {/* Custom Progress Fill Underlay */}
+          {/* Progress Fill */}
           <div
-            className="pointer-events-none absolute left-0 h-1.5 rounded-full bg-gradient-to-r from-teal-400 to-emerald-400"
+            className="pointer-events-none absolute left-0 h-1 rounded-full bg-[var(--accent-gold)]"
             style={{ width: `${Math.max(0, Math.min(100, state.currentProgress * 100))}%` }}
           />
 
-          {/* Defect Layer Tick Markers on Timeline */}
+          {/* Defect Layer Tick Markers */}
           {defects.map((err) => {
             if (!err.layerRange || state.totalLayers <= 1) return null;
             const midLayer = Math.round((err.layerRange[0] + err.layerRange[1]) / 2);
@@ -68,10 +65,10 @@ export function TimeScrubber({
                 type="button"
                 onClick={() => onScrubProgress(midLayer / state.totalLayers)}
                 style={{ left: `${leftPct}%` }}
-                className={`absolute -top-1.5 -translate-x-1/2 w-2 h-2 rounded-full border border-black/60 cursor-pointer z-10 transition-transform hover:scale-150 ${
+                className={`absolute -top-1.5 -translate-x-1/2 w-2 h-2 rounded-full cursor-pointer z-10 transition-transform hover:scale-150 ${
                   err.severity === 'critical' ? 'bg-rose-500' : 'bg-amber-400'
                 }`}
-                title={`${err.title} (Nhấp để nhảy tới Lớp ${midLayer})`}
+                title={`${err.title} (Nhấp nhảy tới Lớp ${midLayer})`}
               />
             );
           })}
@@ -83,12 +80,12 @@ export function TimeScrubber({
             max="1000"
             value={Math.round(state.currentProgress * 1000)}
             onChange={(e) => onScrubProgress(Number(e.target.value) / 1000)}
-            className="w-full h-1.5 rounded-full cursor-pointer accent-teal-400 relative z-0"
-            title="Kéo trượt để duyệt từng lớp cắt G-code (Layer Scrubbing)"
+            className="w-full h-1.5 rounded-full cursor-pointer relative z-0"
+            title="Duyệt từng lớp cắt G-code"
           />
         </div>
 
-        <span className="font-mono text-[11px] font-extrabold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/30 shrink-0 min-w-[48px] text-center">
+        <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-md studio-gold-badge shrink-0 min-w-[48px] text-center">
           {percent}%
         </span>
       </div>
@@ -99,34 +96,34 @@ export function TimeScrubber({
         <div className="flex items-center gap-1">
           <button
             onClick={onReset}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+            className="p-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary transition-all active:scale-95 cursor-pointer"
             title="Về lớp đầu tiên (Lớp 1)"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <IconReset size={13} />
           </button>
 
           <button
             onClick={() => onStepLayer(-1)}
             disabled={state.currentLayer <= 1}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white disabled:opacity-30 transition-all cursor-pointer"
+            className="p-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary disabled:opacity-30 transition-all cursor-pointer"
             title="Lùi 1 lớp (Phím ←)"
           >
-            <ChevronLeft className="w-3.5 h-3.5" />
+            <IconChevronLeft size={13} />
           </button>
 
           <button
             onClick={onTogglePlay}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-slate-950 font-extrabold text-xs transition-all shadow-md shadow-teal-500/20 active:scale-95 cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl studio-cta-primary font-semibold text-xs transition-all active:scale-95 cursor-pointer"
             title={state.isPlaying ? 'Tạm dừng (Space)' : 'Chạy mô phỏng in (Space)'}
           >
             {state.isPlaying ? (
               <>
-                <Pause className="w-3.5 h-3.5 fill-current" />
+                <IconPause size={12} />
                 <span>Tạm Dừng</span>
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 fill-current" />
+                <IconPlay size={12} />
                 <span>{state.isCompleted ? 'In Lại' : 'Mô Phỏng'}</span>
               </>
             )}
@@ -135,40 +132,40 @@ export function TimeScrubber({
           <button
             onClick={() => onStepLayer(1)}
             disabled={state.currentLayer >= state.totalLayers}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white disabled:opacity-30 transition-all cursor-pointer"
+            className="p-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary disabled:opacity-30 transition-all cursor-pointer"
             title="Tiến 1 lớp (Phím →)"
           >
-            <ChevronRight className="w-3.5 h-3.5" />
+            <IconChevronRight size={13} />
           </button>
         </div>
 
         {/* Center: Live Print Time & Filament Readout */}
-        <div className="hidden md:flex items-center gap-3 text-[11px] bg-black/35 px-3 py-1 rounded-xl border border-white/5">
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <Clock className="w-3.5 h-3.5 text-teal-400" />
-            <strong className="text-white font-mono">{formatPrintTime(state.elapsedTimeSec)}</strong>
-            <span className="text-slate-500 font-mono">/ {formatPrintTime(state.totalTimeSec)}</span>
+        <div className="hidden md:flex items-center gap-3 text-[11px] studio-card px-3 py-1 rounded-xl">
+          <div className="flex items-center gap-1.5 studio-text-secondary">
+            <span>Thời gian:</span>
+            <strong className="studio-text-primary font-mono">{formatPrintTime(state.elapsedTimeSec)}</strong>
+            <span className="studio-text-muted font-mono">/ {formatPrintTime(state.totalTimeSec)}</span>
           </div>
 
-          <div className="w-[1px] h-3.5 bg-white/10" />
+          <div className="w-[1px] h-3.5 bg-[var(--border-hairline)]" />
 
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <Weight className="w-3.5 h-3.5 text-amber-400" />
-            <strong className="text-white font-mono">{state.filamentUsedGrams.toFixed(1)}g</strong>
-            <span className="text-slate-500 font-mono">/ {state.totalFilamentGrams.toFixed(1)}g</span>
+          <div className="flex items-center gap-1.5 studio-text-secondary">
+            <span>Khối lượng:</span>
+            <strong className="studio-text-primary font-mono">{state.filamentUsedGrams.toFixed(1)}g</strong>
+            <span className="studio-text-muted font-mono">/ {state.totalFilamentGrams.toFixed(1)}g</span>
           </div>
         </div>
 
         {/* Right: Speed Multipliers & Instant Finish */}
-        <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-xl border border-white/10">
+        <div className="flex items-center gap-0.5 studio-card p-0.5 rounded-xl">
           {speeds.map((s) => (
             <button
               key={s}
               onClick={() => onSetSpeed(s)}
-              className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-lg text-[11px] font-mono transition-all cursor-pointer ${
                 state.playbackSpeed === s
-                  ? 'bg-teal-400 text-slate-950 font-extrabold shadow-xs'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  ? 'studio-pill-active'
+                  : 'studio-pill-inactive font-medium'
               }`}
             >
               {s}x
@@ -177,15 +174,12 @@ export function TimeScrubber({
 
           <button
             onClick={onInstantFinish}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-              state.isCompleted
-                ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40'
-                : 'bg-white/5 hover:bg-white/15 text-emerald-300'
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-semibold transition-all cursor-pointer ${
+              state.isCompleted ? 'studio-gold-badge' : 'studio-pill-inactive'
             }`}
             title="Tua tới 100% thành phẩm"
           >
-            <Sparkles className="w-3 h-3" />
-            <span className="hidden sm:inline">100%</span>
+            100%
           </button>
         </div>
       </div>

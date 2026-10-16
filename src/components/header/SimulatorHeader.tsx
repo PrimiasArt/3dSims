@@ -1,26 +1,25 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
-  Upload,
-  ShieldCheck,
-  Compass,
-  Layers,
-  Box,
-  Link2,
-  Download,
-  AlertTriangle,
-  Activity,
-  Sparkles,
-  Zap,
-  Server,
-  Cpu,
-  Camera,
-  Key,
-  FolderOpen,
-  ChevronDown,
-  Flame,
-  Wrench,
-  SlidersHorizontal,
-} from 'lucide-react';
+  IconCube,
+  IconAxis,
+  IconLayers,
+  IconToolpath,
+  IconNozzle,
+  IconSupport,
+  IconAngle,
+  IconImport,
+  IconExport,
+  IconArchive,
+  IconMeshGen,
+  IconTerminal,
+  IconCheckShield,
+  IconSliders,
+  IconKeyMinimal,
+  IconAperture,
+  IconSun,
+  IconMoon,
+  IconChevronDown,
+} from '@/components/icons/MinimalIcons';
 import {
   ISampleModel,
   IPreflightReport,
@@ -38,11 +37,9 @@ interface SimulatorHeaderProps {
   onOpenReportModal: () => void;
   isEmbedded: boolean;
   onResetSimulation: () => void;
-  // Dual-Engine Architecture Switcher
   simulatorEngine: SimulatorEngineType;
   onSetEngine: (engine: SimulatorEngineType) => void;
   onOpenEngineModal: () => void;
-  // Viewport Toggles & Camera Controls
   showHeatmap: boolean;
   onToggleHeatmap: () => void;
   showToolhead: boolean;
@@ -52,25 +49,22 @@ interface SimulatorHeaderProps {
   hasSupport: boolean;
   cameraView: 'iso' | 'top' | 'front' | 'nozzle';
   onSetCameraView: (view: 'iso' | 'top' | 'front' | 'nozzle') => void;
-  // Slicer Render Modes & View Modes
   renderMode: SlicerRenderMode;
   onSetRenderMode: (mode: SlicerRenderMode) => void;
   viewMode: ViewportDisplayMode;
   onSetViewMode: (mode: ViewportDisplayMode) => void;
   onOpenExportModal: () => void;
-  // Bambu Lab Features: Timelapse & AI Support
   onOpenTimelapseModal: () => void;
   onOpenSupportAIModal: () => void;
   hasGeminiKey: boolean;
   onOpenGeminiKeyModal: () => void;
-  // Local Slicer CLI Bridge
   onOpenLocalSlicerModal: () => void;
-  // Model Library / 3MF Selector
   onOpenModelLibrary?: () => void;
   // Live Telemetry & Report Inspector
   onOpenLiveInspectorModal?: () => void;
-  // AI 3D Generator Studio (Trellis / Tripo / Meshy)
   onOpenAI3DModal?: () => void;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
 export function SimulatorHeader({
@@ -79,7 +73,6 @@ export function SimulatorHeader({
   onUploadFile,
   preflightReport,
   onOpenReportModal,
-  isEmbedded,
   simulatorEngine,
   onSetEngine,
   onOpenEngineModal,
@@ -103,6 +96,8 @@ export function SimulatorHeader({
   onOpenModelLibrary,
   onOpenLiveInspectorModal,
   onOpenAI3DModal,
+  theme = 'dark',
+  onToggleTheme,
 }: SimulatorHeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isStudioMenuOpen, setIsStudioMenuOpen] = useState(false);
@@ -126,74 +121,67 @@ export function SimulatorHeader({
     }
   };
 
-  const scoreBadgeStyle =
-    preflightReport.printabilityScore >= 85
-      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35 hover:bg-emerald-500/25'
-      : preflightReport.printabilityScore >= 60
-      ? 'bg-amber-500/15 text-amber-300 border-amber-500/35 hover:bg-amber-500/25'
-      : 'bg-rose-500/15 text-rose-300 border-rose-500/35 hover:bg-rose-500/25';
-
-  const renderModes: { id: SlicerRenderMode; label: string; icon: React.ReactNode }[] = [
-    { id: 'realistic', label: 'Nhựa Thật', icon: <Sparkles className="w-3.5 h-3.5" /> },
-    { id: 'features', label: 'Line Type', icon: <Layers className="w-3.5 h-3.5" /> },
-    { id: 'defects', label: 'Góc Overhang', icon: <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> },
-    { id: 'speed', label: 'Lưu Lượng', icon: <Activity className="w-3.5 h-3.5 text-amber-400" /> },
+  const renderModes: { id: SlicerRenderMode; label: string }[] = [
+    { id: 'realistic', label: 'Vật Liệu PBR' },
+    { id: 'features', label: 'Cấu Trúc Lớp' },
+    { id: 'defects', label: 'Góc Overhang' },
+    { id: 'speed', label: 'Lưu Lượng Đùn' },
   ];
 
   return (
-    <header className="fixed top-2.5 left-3 right-3 z-30 flex items-center justify-between gap-1.5 pointer-events-none whitespace-nowrap">
+    <header className="fixed top-3 left-3 right-3 z-30 flex items-center justify-between gap-2 pointer-events-none whitespace-nowrap">
       {/* =====================================================================
-          1. CỤM TRÁI: THƯƠNG HIỆU & QUẢN LÝ FILE / MÔ HÌNH (UNIFIED MODEL BAR)
+          1. CỤM TRÁI: NHẬN DIỆN STUDIO & QUẢN LÝ PHÔI MÔ HÌNH
          ===================================================================== */}
       <div className="flex items-center gap-1.5 pointer-events-auto shrink-0">
-        {/* Brand Identity */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass-panel border border-white/15">
-          <div className="w-5 h-5 rounded-md bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-slate-950 font-black text-[10px] shadow-sm shadow-emerald-500/30">
-            3D
+        {/* Minimalist Architectural Brand Mark */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl glass-panel">
+          <div className="w-5 h-5 rounded-md studio-pill-active flex items-center justify-center">
+            <IconCube size={12} />
           </div>
-          <span className="font-extrabold text-xs tracking-tight text-white">
+          <span className="font-semibold text-xs tracking-tight studio-text-primary">
             PrintSim
           </span>
-          <span className="text-[8px] font-mono font-bold uppercase px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 hidden 2xl:inline">
-            STUDIO
+          <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded studio-gold-badge hidden xl:inline">
+            PRO
           </span>
         </div>
 
-        {/* Unified Model Selector + Library + Upload Dock */}
-        <div className="flex items-center rounded-xl glass-panel border border-white/15 p-0.5">
-          <div className="flex items-center gap-1 px-2 py-1">
-            <Box className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+        {/* Unified Model Selector + Library + Import Bar */}
+        <div className="flex items-center rounded-xl glass-panel p-0.5">
+          <div className="flex items-center gap-1.5 px-2.5 py-1">
+            <IconCube size={13} className="studio-text-gold shrink-0" />
             <select
               value={currentModel.id}
               onChange={(e) => {
                 const found = SAMPLE_MODELS.find((m) => m.id === e.target.value);
                 if (found) onSelectSample(found);
               }}
-              className="bg-transparent text-xs font-semibold text-slate-100 focus:outline-none cursor-pointer max-w-[125px] truncate"
-              title="Chọn mô hình mẫu hoặc mô hình đang tải"
+              className="bg-transparent text-xs font-medium studio-text-primary focus:outline-none cursor-pointer max-w-[135px] truncate"
+              title="Chọn phôi mô hình 3D"
             >
               {!SAMPLE_MODELS.some((m) => m.id === currentModel.id) && (
-                <option value={currentModel.id} className="bg-slate-900 text-teal-300 font-bold">
-                  📂 {currentModel.name} ({currentModel.accentBadge})
+                <option value={currentModel.id} className="bg-neutral-900 text-amber-200 font-semibold">
+                  {currentModel.name} ({currentModel.accentBadge})
                 </option>
               )}
               {SAMPLE_MODELS.map((m) => (
-                <option key={m.id} value={m.id} className="bg-slate-900 text-white">
+                <option key={m.id} value={m.id} className="bg-neutral-900 text-neutral-100">
                   {m.name} ({m.accentBadge})
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="w-[1px] h-4 bg-white/10" />
+          <div className="w-[1px] h-3.5 bg-[var(--border-hairline)]" />
 
           {onOpenModelLibrary && (
             <button
               onClick={onOpenModelLibrary}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 text-slate-200 hover:text-teal-300 text-[11px] font-semibold transition-colors cursor-pointer"
-              title="Mở kho mô hình 3MF / STL có sẵn"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg studio-pill-inactive text-[11px] font-medium transition-colors cursor-pointer"
+              title="Thư viện phôi 3MF / STL"
             >
-              <FolderOpen className="w-3.5 h-3.5 text-teal-400" />
+              <IconArchive size={12} />
               <span className="hidden md:inline">Kho 3MF</span>
             </button>
           )}
@@ -207,10 +195,10 @@ export function SimulatorHeader({
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 hover:bg-teal-500/20 text-teal-300 border border-white/5 hover:border-teal-400/30 text-[11px] font-bold transition-all cursor-pointer ml-0.5"
-            title="Tải file .3MF, .STL hoặc .OBJ từ máy tính và tự động cắt lớp"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg studio-gold-badge text-[11px] font-medium transition-all cursor-pointer ml-0.5 hover:opacity-85"
+            title="Nạp file CAD (.3MF, .STL, .OBJ)"
           >
-            <Upload className="w-3 h-3" />
+            <IconImport size={12} />
             <span className="hidden md:inline">Nạp File</span>
           </button>
         </div>
@@ -220,267 +208,239 @@ export function SimulatorHeader({
           2. CỤM GIỮA: 3 CHẾ ĐỘ LÀM VIỆC TRUNG TÂM (PREPARE / CAD / FILAMENT)
          ===================================================================== */}
       <div className="hidden lg:flex items-center gap-1.5 pointer-events-auto shrink-0">
-        {/* 3-Stage Workspace Mode Switcher */}
-        <div className="flex items-center p-0.5 rounded-xl glass-panel border border-white/15">
+        {/* 3-Stage Workspace Mode Switcher (Zero emojis, Pure Minimalist Geometry) */}
+        <div className="flex items-center p-0.5 rounded-xl glass-panel">
           <button
             data-testid="view-mode-prepare-btn"
             onClick={() => onSetViewMode('prepare')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-              viewMode === 'prepare'
-                ? 'bg-cyan-400 text-slate-950 shadow-xs font-extrabold'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+              viewMode === 'prepare' ? 'studio-pill-active' : 'studio-pill-inactive font-medium'
             }`}
-            title="Giai đoạn 1: Chuẩn bị bàn in (Xoay, Di chuyển, Tỉ lệ, Tự động đặt phẳng)"
+            title="Giai đoạn 1: Chuẩn bị bàn in (Định vị, Xoay góc, Tỉ lệ)"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+            <IconAxis size={13} />
             <span>Chuẩn Bị</span>
           </button>
 
           <button
             data-testid="view-mode-cad-btn"
             onClick={() => onSetViewMode('cad')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-              viewMode === 'cad'
-                ? 'bg-teal-400 text-slate-950 shadow-xs font-extrabold'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+              viewMode === 'cad' ? 'studio-pill-active' : 'studio-pill-inactive font-medium'
             }`}
-            title="Giai đoạn 2: Mô phỏng đùn lớp trên phôi 3D CAD mượt + Mặt cắt Infill & Tree Support"
+            title="Giai đoạn 2: Mô phỏng cắt lớp trên phôi CAD & Conformal Support"
           >
-            <Box className="w-3.5 h-3.5 shrink-0" />
+            <IconCube size={13} />
             <span>Mô Phỏng CAD</span>
           </button>
 
           <button
             data-testid="view-mode-filament-btn"
             onClick={() => onSetViewMode('filament_preview')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-              viewMode === 'filament_preview'
-                ? 'bg-emerald-400 text-slate-950 shadow-xs font-extrabold'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+              viewMode === 'filament_preview' ? 'studio-pill-active' : 'studio-pill-inactive font-medium'
             }`}
-            title="Giai đoạn 3: Xem sợi in G-code thực tế từ Bambu Studio (Tường ngoài, Tường trong, Infill, Seam & Tree Support)"
+            title="Giai đoạn 3: Xem sợi in G-code Bambu Studio thực tế"
           >
-            <Layers className="w-3.5 h-3.5 shrink-0" />
+            <IconToolpath size={13} />
             <span>Sợi In Bambu</span>
           </button>
         </div>
 
-        {/* Viewport Display & Overlay Bar (Color Scheme + Toolhead + Support + Overhang Heatmap) */}
-        <div className="flex items-center gap-1 p-0.5 rounded-xl glass-panel border border-white/15">
-          {/* Color Scheme Selector */}
-          <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/5">
-            <Sparkles className="w-3 h-3 text-teal-400 shrink-0" />
+        {/* Viewport Display & Overlay Bar */}
+        <div className="flex items-center gap-0.5 p-0.5 rounded-xl glass-panel">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg studio-card">
+            <IconLayers size={12} className="studio-text-gold shrink-0" />
             <select
               value={renderMode}
               onChange={(e) => onSetRenderMode(e.target.value as SlicerRenderMode)}
-              className="bg-transparent text-[11px] font-semibold text-slate-200 focus:outline-none cursor-pointer"
-              title="Chọn chế độ tô màu phân tích kỹ thuật"
+              className="bg-transparent text-[11px] font-medium studio-text-primary focus:outline-none cursor-pointer"
+              title="Chế độ hiển thị bề mặt kỹ thuật"
             >
               {renderModes.map((rm) => (
-                <option key={rm.id} value={rm.id} className="bg-slate-900 text-white">
+                <option key={rm.id} value={rm.id} className="bg-neutral-900 text-neutral-100">
                   {rm.label}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="w-[1px] h-4 bg-white/10" />
+          <div className="w-[1px] h-3.5 bg-[var(--border-hairline)] mx-0.5" />
 
-          {/* Toolhead Toggle */}
           <button
             onClick={onToggleToolhead}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-              showToolhead
-                ? 'bg-teal-500/20 text-teal-300 border border-teal-400/35'
-                : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+              showToolhead ? 'studio-gold-badge font-semibold' : 'studio-pill-inactive'
             }`}
-            title="Bật/Tắt đầu phun CoreXY ảo"
+            title="Ẩn/Hiện cụm đầu phun CoreXY"
           >
-            <Compass className="w-3.5 h-3.5 shrink-0" />
+            <IconNozzle size={12} />
             <span className="hidden xl:inline">Đầu In</span>
           </button>
 
-          {/* Support Visibility Toggle */}
           {hasSupport && (
             <button
               onClick={onToggleSupport}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                showSupport
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/35'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                showSupport ? 'studio-gold-badge font-semibold' : 'studio-pill-inactive'
               }`}
-              title="Ẩn/Hiện cấu trúc cây đỡ Support"
+              title="Ẩn/Hiện cấu trúc Tree Support"
             >
-              <Layers className="w-3.5 h-3.5 shrink-0" />
+              <IconSupport size={12} />
               <span className="hidden xl:inline">Support</span>
             </button>
           )}
 
-          {/* Overhang Heatmap Toggle */}
           <button
             onClick={onToggleHeatmap}
-            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-              showHeatmap
-                ? 'bg-rose-500/20 text-rose-300 border border-rose-400/35'
-                : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+              showHeatmap ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30' : 'studio-pill-inactive'
             }`}
-            title="Bật/Tắt bản đồ nhiệt cảnh báo góc nghiêng Overhang (>45°)"
+            title="Phân tích góc nghiêng Overhang (>45°)"
           >
-            <Flame className="w-3.5 h-3.5 shrink-0" />
+            <IconAngle size={12} />
           </button>
         </div>
       </div>
 
       {/* =====================================================================
-          3. CỤM PHẢI: MENU "AI & STUDIO TOOLS" + PREFLIGHT SCORE + XUẤT G-CODE
+          3. CỤM PHẢI: AI & STUDIO TOOLS + THEME TOGGLE + PREFLIGHT + XUẤT
          ===================================================================== */}
       <div className="flex items-center gap-1.5 pointer-events-auto shrink-0 justify-end">
-        {/* Unified "AI & Studio Tools" Split Pill */}
+        {/* Consolidated AI & Studio Tools Pill */}
         <div ref={studioMenuRef} className="relative">
-          <div className="flex items-center rounded-xl glass-panel border border-white/15 p-0.5">
-            {/* Quick AI 3D Trigger inside the unified pill */}
+          <div className="flex items-center rounded-xl glass-panel p-0.5">
             {onOpenAI3DModal && (
               <>
                 <button
                   data-testid="ai-3d-generator-btn"
                   onClick={onOpenAI3DModal}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-teal-300 hover:bg-teal-500/15 transition-colors cursor-pointer"
-                  title="Tạo mô hình 3D tự động bằng AI (Trellis / Tripo3D / Meshy)"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium studio-pill-inactive cursor-pointer"
+                  title="Tạo phôi 3D bằng AI (Trellis / Tripo3D / Meshy)"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                  <span className="hidden 2xl:inline">AI 3D</span>
+                  <IconMeshGen size={13} className="studio-text-gold" />
                 </button>
-                <div className="w-[1px] h-4 bg-white/10" />
+                <div className="w-[1px] h-3.5 bg-[var(--border-hairline)]" />
               </>
             )}
 
-            {/* Quick Gemini Key Status Indicator */}
             <button
               data-testid="gemini-key-modal-btn"
               onClick={onOpenGeminiKeyModal}
-              className={`flex items-center gap-1 px-1.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                hasGeminiKey
-                  ? 'text-emerald-300 hover:bg-emerald-500/15'
-                  : 'text-amber-300 bg-amber-500/15 hover:bg-amber-500/25'
-              }`}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium studio-pill-inactive cursor-pointer"
               title={
                 hasGeminiKey
-                  ? 'Google Gemini AI đã kết nối — Nhấp để kiểm tra API Key'
-                  : 'Nhấp để thiết lập Google Gemini API Key'
+                  ? 'Đã kết nối Gemini AI — Nhấp để quản lý khóa API'
+                  : 'Thiết lập khóa kết nối Gemini API'
               }
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  hasGeminiKey ? 'bg-emerald-400' : 'bg-amber-400 animate-ping'
+                  hasGeminiKey ? 'bg-emerald-400' : 'bg-[var(--accent-gold)]'
                 }`}
               />
-              <Key className="w-3 h-3 shrink-0" />
+              <IconKeyMinimal size={12} />
             </button>
 
-            <div className="w-[1px] h-4 bg-white/10" />
+            <div className="w-[1px] h-3.5 bg-[var(--border-hairline)]" />
 
-            {/* Studio Tools Dropdown Trigger */}
             <button
               data-testid="studio-tools-menu-btn"
               onClick={() => setIsStudioMenuOpen((prev) => !prev)}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
                 isStudioMenuOpen || simulatorEngine === 'pro_local'
-                  ? 'bg-teal-500/20 text-teal-200 border border-teal-400/30'
-                  : 'text-slate-200 hover:text-white hover:bg-white/10'
+                  ? 'studio-gold-badge font-semibold'
+                  : 'studio-pill-inactive'
               }`}
-              title="Mở bảng AI & Studio Tools (Slicer CLI, AI Support Copilot, Timelapse, Chuyển đổi Engine E1/E2)"
+              title="Mở bộ công cụ AI & Slicer Studio"
             >
-              <Wrench className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-              <span>AI &amp; Tools</span>
-              <ChevronDown
-                className={`w-3 h-3 text-slate-400 transition-transform ${
-                  isStudioMenuOpen ? 'rotate-180' : ''
-                }`}
+              <IconSliders size={12} />
+              <span>Studio Tools</span>
+              <IconChevronDown
+                size={11}
+                className={`transition-transform ${isStudioMenuOpen ? 'rotate-180' : ''}`}
               />
             </button>
           </div>
 
-          {/* Consolidated AI & Studio Tools Popover */}
+          {/* Minimalist Architectural Dropdown Menu */}
           {isStudioMenuOpen && (
-            <div className="absolute right-0 mt-2 w-80 rounded-2xl glass-panel border border-white/15 p-3 shadow-2xl space-y-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-1.5 pb-1.5 border-b border-white/10 flex items-center justify-between">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                  AI &amp; Studio Tools Hub
+            <div className="absolute right-0 mt-2 w-80 rounded-2xl glass-panel p-3 space-y-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-1.5 pb-1.5 border-b studio-border flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-widest studio-text-muted">
+                  BỘ CÔNG CỤ KỸ THUẬT &amp; AI
                 </span>
-                <span className="text-[10px] font-mono text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded border border-teal-500/20">
-                  Bambu Core
+                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded studio-gold-badge">
+                  CORE STUDIO
                 </span>
               </div>
 
-              {/* 1. Local Slicer CLI (Bambu Studio & PrusaSlicer) */}
+              {/* 1. Local Slicer CLI */}
               <button
                 onClick={() => {
                   setIsStudioMenuOpen(false);
                   onOpenLocalSlicerModal();
                 }}
-                className="w-full flex items-center justify-between p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 text-left transition-colors cursor-pointer group"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl studio-card hover:border-[var(--accent-gold-border)] text-left transition-all cursor-pointer group"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
-                    <Zap className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg studio-gold-badge flex items-center justify-center shrink-0">
+                    <IconTerminal size={15} />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-emerald-200 group-hover:text-white flex items-center gap-1.5">
+                    <div className="text-xs font-semibold studio-text-primary flex items-center gap-1.5">
                       <span>Bambu Studio / PrusaSlicer CLI</span>
-                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-400/20 text-emerald-300">
-                        Local
-                      </span>
                     </div>
-                    <div className="text-[10px] text-slate-400">
-                      Cắt lớp G-code &amp; dựng Tree Support chuẩn thực tế
+                    <div className="text-[10px] studio-text-secondary">
+                      Biên dịch G-code &amp; Tree Support gốc cục bộ
                     </div>
                   </div>
                 </div>
               </button>
 
-              {/* 2. AI 3D Model Generator */}
+              {/* 2. AI 3D Mesh Synthesis */}
               {onOpenAI3DModal && (
                 <button
                   onClick={() => {
                     setIsStudioMenuOpen(false);
                     onOpenAI3DModal();
                   }}
-                  className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-white/10 text-left transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-[var(--bg-hover)] text-left transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shrink-0">
-                      <Sparkles className="w-4 h-4" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg studio-card flex items-center justify-center studio-text-gold shrink-0">
+                      <IconMeshGen size={15} />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-white group-hover:text-cyan-300">
-                        AI Tạo Mô Hình 3D (Trellis / Tripo)
+                      <div className="text-xs font-semibold studio-text-primary">
+                        Tổng Hợp Phôi 3D (Trellis / Tripo)
                       </div>
-                      <div className="text-[10px] text-slate-400">
-                        Tạo phôi 3D từ văn bản hoặc hình ảnh
+                      <div className="text-[10px] studio-text-secondary">
+                        Tạo lưới 3D từ mô tả kỹ thuật hoặc ảnh chụp
                       </div>
                     </div>
                   </div>
                 </button>
               )}
 
-              {/* 3. AI Support Copilot */}
+              {/* 3. AI Overhang & Orientation Advisor */}
               <button
                 onClick={() => {
                   setIsStudioMenuOpen(false);
                   onOpenSupportAIModal();
                 }}
-                className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-white/10 text-left transition-colors cursor-pointer group"
+                className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-[var(--bg-hover)] text-left transition-colors cursor-pointer"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-teal-500/15 border border-teal-400/30 flex items-center justify-center text-teal-300 shrink-0">
-                    <Sparkles className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg studio-card flex items-center justify-center studio-text-gold shrink-0">
+                    <IconAngle size={15} />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white group-hover:text-teal-300">
-                      Trợ Lý AI Support &amp; Góc Đặt
+                    <div className="text-xs font-semibold studio-text-primary">
+                      Phân Tích Góc Đặt &amp; Support AI
                     </div>
-                    <div className="text-[10px] text-slate-400">
-                      Gemini 2.0 phân tích Overhang &amp; tối ưu thông số
+                    <div className="text-[10px] studio-text-secondary">
+                      Tối ưu hóa hướng đặt phôi giảm thiểu nhựa đỡ
                     </div>
                   </div>
                 </div>
@@ -492,94 +452,110 @@ export function SimulatorHeader({
                   setIsStudioMenuOpen(false);
                   onOpenTimelapseModal();
                 }}
-                className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-white/10 text-left transition-colors cursor-pointer group"
+                className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-[var(--bg-hover)] text-left transition-colors cursor-pointer"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-rose-500/15 border border-rose-400/30 flex items-center justify-center text-rose-300 shrink-0">
-                    <Camera className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg studio-card flex items-center justify-center studio-text-secondary shrink-0">
+                    <IconAperture size={15} />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white group-hover:text-rose-300">
+                    <div className="text-xs font-semibold studio-text-primary">
                       Bambu Timelapse Studio
                     </div>
-                    <div className="text-[10px] text-slate-400">
-                      Mô phỏng Smooth Timelapse đỗ đầu phun Purge Chute
+                    <div className="text-[10px] studio-text-secondary">
+                      Ghi hình Smooth Timelapse tại vị trí Purge Chute
                     </div>
                   </div>
                 </div>
               </button>
 
-              {/* 5. Gemini API Key Config */}
+              {/* 5. Gemini API Key */}
               <button
                 onClick={() => {
                   setIsStudioMenuOpen(false);
                   onOpenGeminiKeyModal();
                 }}
-                className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-white/10 text-left transition-colors cursor-pointer group"
+                className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-[var(--bg-hover)] text-left transition-colors cursor-pointer"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0">
-                    <Key className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg studio-card flex items-center justify-center studio-text-gold shrink-0">
+                    <IconKeyMinimal size={15} />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white group-hover:text-amber-300 flex items-center gap-1.5">
-                      <span>Cấu Hình Gemini API Key</span>
-                      <span
-                        className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
-                          hasGeminiKey
-                            ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-amber-500/20 text-amber-300'
-                        }`}
-                      >
-                        {hasGeminiKey ? 'Đã kết nối' : 'Chưa nhập'}
+                    <div className="text-xs font-semibold studio-text-primary flex items-center gap-2">
+                      <span>Khóa Kết Nối Gemini API</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded font-mono studio-gold-badge">
+                        {hasGeminiKey ? 'ĐÃ KẾT NỐI' : 'CHƯA CẤU HÌNH'}
                       </span>
                     </div>
-                    <div className="text-[10px] text-slate-400">
-                      Quản lý khóa kết nối Google Gemini AI
+                    <div className="text-[10px] studio-text-secondary">
+                      Xác thực mô hình suy luận hình học đám mây
                     </div>
                   </div>
                 </div>
               </button>
 
+              {/* 5.5. Live Telemetry & Report Inspector */}
+              {onOpenLiveInspectorModal && (
+                <button
+                  onClick={() => {
+                    setIsStudioMenuOpen(false);
+                    onOpenLiveInspectorModal();
+                  }}
+                  className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-[var(--bg-hover)] text-left transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg studio-card flex items-center justify-center studio-text-gold shrink-0">
+                      <IconSliders size={15} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold studio-text-primary">
+                        Thanh Tra Báo Cáo &amp; Telemetry
+                      </div>
+                      <div className="text-[10px] studio-text-secondary">
+                        Truy xuất thông số 6-Tab và nhật ký Obsidian
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              )}
+
               {/* 6. Dual-Engine Switcher */}
-              <div className="pt-2 border-t border-white/10 space-y-1.5">
+              <div className="pt-2 border-t studio-border space-y-1.5">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-semibold text-slate-400">
-                    Bộ Giải Mô Phỏng (Simulation Engine):
+                  <span className="text-[10px] font-medium studio-text-secondary">
+                    Nhân Mô Phỏng (Core Engine):
                   </span>
                   <button
                     onClick={() => {
                       setIsStudioMenuOpen(false);
                       onOpenEngineModal();
                     }}
-                    className="text-[10px] text-teal-300 hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-[10px] studio-text-gold hover:underline cursor-pointer"
                   >
-                    <Cpu className="w-3 h-3" />
-                    <span>So sánh E1/E2</span>
+                    Chi tiết kiến trúc →
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5 bg-black/50 p-1 rounded-xl border border-white/10">
+                <div className="grid grid-cols-2 gap-1.5 studio-card p-1 rounded-xl">
                   <button
                     onClick={() => onSetEngine('wasm_client')}
-                    className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] transition-all cursor-pointer ${
                       simulatorEngine === 'wasm_client'
-                        ? 'bg-teal-400 text-slate-950 font-extrabold shadow-xs'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'studio-pill-active'
+                        : 'studio-pill-inactive font-medium'
                     }`}
                   >
-                    <Zap className="w-3 h-3" />
                     <span>E1 Web Wasm</span>
                   </button>
                   <button
                     onClick={() => onSetEngine('pro_local')}
-                    className={`flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] transition-all cursor-pointer ${
                       simulatorEngine === 'pro_local'
-                        ? 'bg-indigo-400 text-slate-950 font-extrabold shadow-xs'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'studio-pill-active'
+                        : 'studio-pill-inactive font-medium'
                     }`}
                   >
-                    <Server className="w-3 h-3" />
                     <span>E2 CNC Local</span>
                   </button>
                 </div>
@@ -588,136 +564,47 @@ export function SimulatorHeader({
           )}
         </div>
 
-<<<<<<< HEAD
-        {/* Upload Custom Model Button (3MF / STL / OBJ) */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".3mf,.stl,.obj"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full glass-panel hover:bg-white/15 border border-white/20 text-white text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-lg"
-          title="Tải file 3MF, STL hoặc OBJ từ máy tính"
-        >
-          <Upload className="w-3.5 h-3.5 text-teal-300" />
-          <span className="hidden xl:inline">Nạp 3MF/STL</span>
-        </button>
-
-        {/* Local Slicer CLI Trigger (Bambu Studio & PrusaSlicer) */}
-        <button
-          onClick={onOpenLocalSlicerModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/25 to-teal-500/25 hover:from-emerald-500/35 hover:to-teal-500/35 text-emerald-200 border border-emerald-400/40 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg backdrop-blur-md"
-          title="Chạy Bambu Studio CLI và PrusaSlicer CLI cục bộ để sinh Tree Support thực tế"
-        >
-          <Zap className="w-3.5 h-3.5 text-emerald-300" />
-          <span>Slicer CLI</span>
-          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-400/20 text-emerald-300">
-            Local
-          </span>
-        </button>
-
-        {/* Gemini API Key Configuration Trigger */}
-        <button
-          data-testid="gemini-key-modal-btn"
-          onClick={onOpenGeminiKeyModal}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg backdrop-blur-md ${
-            hasGeminiKey
-              ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/40'
-              : 'bg-gradient-to-r from-amber-500/25 to-orange-500/25 hover:from-amber-500/35 hover:to-orange-500/35 text-amber-200 border border-amber-400/50 ring-1 ring-amber-400/30 font-black'
-          }`}
-          title={
-            hasGeminiKey
-              ? 'Google Gemini 2.0 Flash AI đã kết nối. Nhấp để kiểm tra hoặc đổi API Key'
-              : 'Nhấp để nhập Google Gemini API Key trực tiếp trên giao diện web'
-          }
-        >
-          {hasGeminiKey ? (
-            <>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50" />
-              <Key className="w-3.5 h-3.5 text-emerald-300" />
-              <span className="hidden sm:inline">Gemini AI</span>
-            </>
-          ) : (
-            <>
-              <Key className="w-3.5 h-3.5 text-amber-300" />
-              <span>Nhập Gemini API</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-            </>
-          )}
-        </button>
-
-        {/* Bambu Support AI & Gemini Trigger */}
-        <button
-          onClick={onOpenSupportAIModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-400/40 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg backdrop-blur-md"
-          title="Trợ lý Bambu Support AI & Gemini 2.0 Flash phân tích vùng Overhang và tối ưu Tree Support"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-teal-300" />
-          <span>AI Support</span>
-        </button>
-
-        {/* Bambu Lab Timelapse Studio Trigger */}
-        <button
-          onClick={onOpenTimelapseModal}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-rose-500/25 to-amber-500/25 hover:from-rose-500/35 hover:to-amber-500/35 text-rose-200 border border-rose-400/40 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg backdrop-blur-md"
-          title="Bambu Lab Timelapse Studio (Smooth Timelapse bãi đỗ Purge Chute)"
-        >
-          <Camera className="w-3.5 h-3.5 text-rose-300" />
-          <span>Timelapse</span>
-        </button>
-
-        {/* Export Real Slicer Profile Button */}
-        <button
-          onClick={onOpenExportModal}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-gradient-to-r from-teal-500/30 to-emerald-500/30 hover:from-teal-500/40 hover:to-emerald-500/40 text-teal-200 border border-teal-400/50 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg backdrop-blur-md"
-          title="Xuất Profile sang Bambu Studio, OrcaSlicer, G-Code"
-        >
-          <Download className="w-3.5 h-3.5 text-teal-300" />
-          <span className="hidden xl:inline">Xuất</span>
-        </button>
-
-        {/* Live Telemetry & Report Inspector Button */}
+        {/* Live Telemetry Inspector Trigger */}
         {onOpenLiveInspectorModal && (
           <button
             onClick={onOpenLiveInspectorModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-500/25 to-blue-500/25 hover:from-cyan-500/35 hover:to-blue-500/35 text-cyan-200 border border-cyan-400/40 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-lg backdrop-blur-md"
-            title="Truy xuất trực tiếp các giá trị thay đổi của app và thông số report đã khóa"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass-panel hover:opacity-85 text-xs font-semibold transition-all cursor-pointer"
+            title="Thanh tra Telemetry & Báo cáo đã khóa"
           >
-            <Activity className="w-3.5 h-3.5 text-cyan-300 animate-pulse" />
-            <span className="hidden sm:inline">Truy Xuất Report</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-gold)] animate-pulse" />
+            <span className="hidden xl:inline text-[11px] studio-text-gold">Report Live</span>
           </button>
         )}
 
-        {/* Pre-Flight Printability Score Badge */}
-        <button
-          onClick={onOpenReportModal}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer glass-panel ${scoreBadgeStyle}`}
-          title="Đánh giá độ khả thi và cảnh báo khuyết tật trước khi in"
-        >
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span className="font-mono font-black">{preflightReport.printabilityScore}</span>
-          <span className="text-[10px] opacity-60 hidden sm:inline">/100</span>
-        </button>
+        {/* Dark / Light Mode Toggle Button */}
+        {onToggleTheme && (
+          <button
+            data-testid="theme-toggle-btn"
+            onClick={onToggleTheme}
+            className="p-2 rounded-xl glass-panel hover:opacity-85 transition-all cursor-pointer"
+            title={
+              theme === 'dark'
+                ? 'Chuyển sang Giao diện Sáng (Soft Daylight Studio)'
+                : 'Chuyển sang Giao diện Tối (Obsidian Dark Mode)'
+            }
+          >
+            {theme === 'dark' ? (
+              <IconSun size={14} className="studio-text-gold" />
+            ) : (
+              <IconMoon size={14} className="studio-text-primary" />
+            )}
+          </button>
+        )}
 
-        {/* Primary Action CTA: Export G-Code / Profile */}
+        {/* Primary Export CTA */}
         <button
           onClick={onOpenExportModal}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 text-xs font-extrabold transition-all active:scale-95 cursor-pointer shadow-lg shadow-emerald-500/20"
-          title="Xuất cấu hình Slicer (.json) hoặc mã máy G-Code (.gcode)"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl studio-cta-primary text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-sm"
+          title="Xuất G-Code hoặc hồ sơ cắt lớp (.json)"
         >
-          <Download className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
+          <IconExport size={13} />
           <span>Xuất</span>
         </button>
-
-        {isEmbedded && (
-          <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/20 text-purple-200 border border-purple-400/40 text-[10px] font-bold">
-            <Link2 className="w-3 h-3 text-purple-300" />
-            <span className="hidden 2xl:inline">3D Hub</span>
-          </div>
-        )}
       </div>
     </header>
   );

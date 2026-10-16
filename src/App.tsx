@@ -44,7 +44,6 @@ import { LiveReportInspectorModal } from '@/components/controls/LiveReportInspec
 import { ExportProfileModal } from '@/components/controls/ExportProfileModal';
 import { SimulatorHeader } from '@/components/header/SimulatorHeader';
 import { EngineComparisonModal } from '@/components/controls/EngineComparisonModal';
-import { ProSlicerTelemetryPanel } from '@/components/controls/ProSlicerTelemetryPanel';
 import { BambuTimelapseModal } from '@/components/controls/BambuTimelapseModal';
 import { BambuSupportAIAssistantModal } from '@/components/controls/BambuSupportAIAssistantModal';
 import { GeminiApiKeyModal } from '@/components/controls/GeminiApiKeyModal';
@@ -52,11 +51,27 @@ import { getSavedGeminiApiKey } from '@/services/geminiSupportService';
 import { LocalSlicerModal } from '@/components/controls/LocalSlicerModal';
 import { ModelLibraryModal } from '@/components/controls/ModelLibraryModal';
 import { AI3DGeneratorModal } from '@/components/controls/AI3DGeneratorModal';
+import {
+  SimulationRunLogPanel,
+  ISimulationLogEntry,
+} from '@/components/controls/SimulationRunLogPanel';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { ISliceResponse } from '@/services/localSlicerService';
 import { useTelemetryLogger } from '@/hooks/useTelemetryLogger';
+import { IconAxis, IconLayers, IconToolpath } from '@/components/icons/MinimalIcons';
 
 export default function App() {
+  // 0. Luxury Dark / Light Theme State
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('printsim_theme');
+    return saved === 'light' ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('printsim_theme', theme);
+  }, [theme]);
+
   // 1. Model & Geometry State
   const [currentModel, setCurrentModel] = useState<ISampleModel>(SAMPLE_MODELS[0]);
   const [baseGeometry, setBaseGeometry] = useState<THREE.BufferGeometry>(() =>
@@ -523,20 +538,94 @@ export default function App() {
     }));
   };
 
+  // 7. Bảng Nhật Ký Chạy Mô Phỏng (Simulation Run Logs)
+  const formatTimestampNow = () => {
+    const d = new Date();
+    return d.toTimeString().slice(0, 8);
+  };
+
+  const [simulationLogs, setSimulationLogs] = useState<ISimulationLogEntry[]>(() => [
+    {
+      id: 'run-init-1',
+      runNumber: 1,
+      timestamp: new Date().toTimeString().slice(0, 8),
+      triggerLabel: 'Khởi tạo',
+      modelName: SAMPLE_MODELS[0].name,
+      material: PRESET_PROFILES[0].material,
+      layerHeight: PRESET_PROFILES[0].layerHeight,
+      infillDensity: PRESET_PROFILES[0].infillDensity,
+      infillType: PRESET_PROFILES[0].infillType,
+      supportMode: PRESET_PROFILES[0].supportMode,
+      printSpeed: PRESET_PROFILES[0].printSpeed,
+      nozzleTemp: PRESET_PROFILES[0].nozzleTemp,
+      estimatedTimeSec: slicingMetrics.estimatedPrintTimeSec,
+      filamentGrams: slicingMetrics.estimatedFilamentGrams,
+      totalLayers: slicingMetrics.totalLayers,
+      score: preflightReport.printabilityScore,
+      overhangPercent: preflightReport.overhangRiskAreaPercent,
+      profileSnapshot: { ...PRESET_PROFILES[0] },
+    },
+  ]);
+
+  const recordSimulationLog = useCallback(
+    (
+      triggerLabel: string,
+      customProfile?: ISimulationProfile,
+      customModelName?: string
+    ) => {
+      const targetProfile = customProfile || profile;
+      const targetMetrics = customProfile
+        ? computeSlicingMetrics(geometry, targetProfile, modelTransform.scale)
+        : slicingMetrics;
+      const targetReport = customProfile
+        ? runPreflightInspection(geometry, targetProfile, targetMetrics)
+        : preflightReport;
+
+      setSimulationLogs((prev) => {
+        const nextRunNum = (prev[0]?.runNumber || 0) + 1;
+        const entry: ISimulationLogEntry = {
+          id: `run-${Date.now()}-${nextRunNum}`,
+          runNumber: nextRunNum,
+          timestamp: formatTimestampNow(),
+          triggerLabel,
+          modelName: customModelName || currentModel.name,
+          material: targetProfile.material,
+          layerHeight: targetProfile.layerHeight,
+          infillDensity: targetProfile.infillDensity,
+          infillType: targetProfile.infillType,
+          supportMode: targetProfile.supportMode,
+          printSpeed: targetProfile.printSpeed,
+          nozzleTemp: targetProfile.nozzleTemp,
+          estimatedTimeSec: targetMetrics.estimatedPrintTimeSec,
+          filamentGrams: targetMetrics.estimatedFilamentGrams,
+          totalLayers: targetMetrics.totalLayers,
+          score: targetReport.printabilityScore,
+          overhangPercent: targetReport.overhangRiskAreaPercent,
+          profileSnapshot: { ...targetProfile },
+        };
+        return [entry, ...prev].slice(0, 20);
+      });
+    },
+    [profile, geometry, modelTransform.scale, slicingMetrics, preflightReport, currentModel.name]
+  );
+
   // Tua đến Thành Phẩm (100%)
   const handleInstantFinish = () => {
     handleScrubProgress(1.0);
+    recordSimulationLog('Tua 100%');
     confetti({
       particleCount: 50,
       spread: 60,
       origin: { y: 0.7 },
-      colors: ['#2dd4bf', '#10b981'],
+      colors: ['#d4b483', '#10b981'],
     });
   };
 
   // Áp dụng bản vá lỗi tự động từ Preflight HUD
   const handleApplyFix = (patch: Partial<ISimulationProfile>) => {
-    setProfile((prev) => ({ ...prev, ...patch }));
+    const nextProfile = { ...profile, ...patch };
+    setProfile(nextProfile);
+    recordSimulationLog('Tối ưu AI', nextProfile);
   };
 
   // Nạp mô hình từ AI 3D Generator Studio (Trellis • Tripo • Meshy)
@@ -544,20 +633,24 @@ export default function App() {
     setCurrentModel(model);
     setBaseGeometry(geom);
     setModelTransform(DEFAULT_TRANSFORM);
+    recordSimulationLog('Nạp AI 3D', profile, model.name);
     confetti({
       particleCount: 60,
       spread: 70,
       origin: { y: 0.75 },
-      colors: ['#2dd4bf', '#10b981', '#38bdf8', '#c084fc'],
+      colors: ['#d4b483', '#10b981', '#38bdf8'],
     });
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden select-none bg-[#07090e] text-white">
+    <div className="relative w-screen h-screen overflow-hidden select-none bg-[var(--bg-canvas)] text-[var(--text-primary)] transition-colors duration-300">
       {/* 1. Header Toolbar (Single Unified Top Bar - No Overlap) */}
       <SimulatorHeader
         currentModel={currentModel}
-        onSelectSample={handleSelectSample}
+        onSelectSample={(sample) => {
+          handleSelectSample(sample);
+          recordSimulationLog('Đổi mẫu phôi', profile, sample.name);
+        }}
         onUploadFile={handleUploadFile}
         preflightReport={preflightReport}
         onOpenReportModal={() => setIsReportModalOpen(true)}
@@ -588,23 +681,14 @@ export default function App() {
         onOpenModelLibrary={() => setIsModelLibraryOpen(true)}
         onOpenLiveInspectorModal={() => setIsLiveInspectorOpen(true)}
         onOpenAI3DModal={() => setIsAI3DModalOpen(true)}
+        theme={theme}
+        onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
       />
-
-      {/* Engine 2: Pro Slicer Local Telemetry HUD (Đặt góc dưới trái để không đè bảng Slicing Result bên phải) */}
-      {simulatorEngine === 'pro_local' && (
-        <div className="fixed bottom-28 left-4 z-20 pointer-events-auto">
-          <ProSlicerTelemetryPanel
-            telemetry={proTelemetry}
-            state={simulationState}
-            gcodeLines={gcodeLines}
-          />
-        </div>
-      )}
 
       {/* Notification Toast khi Bambu Studio CLI đang cắt lát */}
       {uploadSlicingStatus && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-2.5 bg-emerald-950/95 border border-emerald-500/60 rounded-xl shadow-2xl backdrop-blur-md text-emerald-300 text-xs font-semibold animate-pulse">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-2.5 glass-panel studio-gold-badge rounded-xl shadow-2xl text-xs font-semibold animate-pulse">
+          <span className="w-2 h-2 rounded-full bg-[var(--accent-gold)] animate-ping" />
           <span>{uploadSlicingStatus}</span>
         </div>
       )}
@@ -638,6 +722,12 @@ export default function App() {
           }}
           isSmoothTimelapseActive={isTimelapseModalOpen}
           currentModel={currentModel}
+          theme={theme}
+          onOpenReportModal={() => setIsReportModalOpen(true)}
+          simulatorEngine={simulatorEngine}
+          proTelemetry={proTelemetry}
+          gcodeLines={gcodeLines}
+          isProfileOpen={isProfileOpen}
         />
       </main>
 
@@ -647,7 +737,10 @@ export default function App() {
         onChangeProfile={(updated) => setProfile((prev) => ({ ...prev, ...updated }))}
         onApplyPreset={(presetId) => {
           const found = PRESET_PROFILES.find((p) => p.id === presetId);
-          if (found) setProfile(found);
+          if (found) {
+            setProfile(found);
+            recordSimulationLog(`Preset: ${found.material}`, found);
+          }
         }}
         isOpen={isProfileOpen}
         onToggleOpen={() => setIsProfileOpen((prev) => !prev)}
@@ -656,34 +749,49 @@ export default function App() {
         onOpenLocalSlicerModal={() => setIsLocalSlicerModalOpen(true)}
       />
 
+      {/* 3.5. Simulation Run Log Panel (Ghi lại thông số các lần chạy mô phỏng) */}
+      <SimulationRunLogPanel
+        logs={simulationLogs}
+        isProfileOpen={isProfileOpen}
+        onRecordManualLog={() => recordSimulationLog('Ghi thủ công')}
+        onRestoreProfile={(savedProfile) => {
+          setProfile(savedProfile);
+          recordSimulationLog('Khôi phục Log', savedProfile);
+        }}
+        onClearLogs={() => setSimulationLogs((prev) => (prev.length > 0 ? [prev[0]] : []))}
+      />
+
       {/* 4. Bottom Dock: Prepare Stage Action Bar OR Playback Timeline Scrubber */}
       <div className="fixed bottom-3 left-3 right-3 z-20 pointer-events-auto">
         {viewMode === 'prepare' ? (
-          <div className="w-full max-w-4xl mx-auto px-4 py-2 rounded-2xl glass-panel border border-white/15 shadow-2xl flex items-center justify-between gap-4 whitespace-nowrap">
+          <div className="w-full max-w-4xl mx-auto px-4 py-2 rounded-2xl glass-panel flex items-center justify-between gap-4 whitespace-nowrap">
             <div className="flex items-center gap-3 text-xs">
-              <span className="px-2.5 py-1 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-400/30 font-extrabold">
-                🛠️ Chế Độ Chuẩn Bị Bàn In
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg studio-gold-badge font-bold uppercase tracking-wider text-[10px]">
+                <IconAxis className="w-3.5 h-3.5" />
+                <span>Chế Độ Chuẩn Bị Bàn In</span>
               </span>
-              <span className="text-slate-300 font-mono text-[11px] hidden sm:inline">
-                Kích thước: <strong className="text-white">{Math.round(slicingMetrics.boundingBox.dimensions[0])} × {Math.round(slicingMetrics.boundingBox.dimensions[2])} × {Math.round(slicingMetrics.boundingBox.dimensions[1])} mm</strong>
+              <span className="text-[var(--text-secondary)] font-mono text-[11px] hidden sm:inline">
+                Kích thước: <strong className="text-[var(--text-primary)]">{Math.round(slicingMetrics.boundingBox.dimensions[0])} × {Math.round(slicingMetrics.boundingBox.dimensions[2])} × {Math.round(slicingMetrics.boundingBox.dimensions[1])} mm</strong>
               </span>
-              <span className="text-slate-400 font-mono text-[11px] hidden md:inline">
-                • Overhang: <strong className="text-amber-300">{preflightReport.overhangRiskAreaPercent}%</strong>
+              <span className="text-[var(--text-muted)] font-mono text-[11px] hidden md:inline">
+                • Overhang: <strong className="text-[var(--accent-gold)]">{preflightReport.overhangRiskAreaPercent}%</strong>
               </span>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setViewMode('cad')}
-                className="px-3.5 py-1.5 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-teal-500/20"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl studio-cta-primary font-bold text-xs transition-all cursor-pointer"
               >
-                📐 Cắt Lớp &amp; Mô Phỏng CAD →
+                <IconLayers className="w-3.5 h-3.5" />
+                <span>Cắt Lớp &amp; Mô Phỏng CAD →</span>
               </button>
               <button
                 onClick={() => setViewMode('filament_preview')}
-                className="px-3.5 py-1.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-emerald-500/20"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl studio-gold-badge hover:opacity-90 font-bold text-xs transition-all cursor-pointer"
               >
-                🧵 Xem Sợi In Bambu →
+                <IconToolpath className="w-3.5 h-3.5" />
+                <span>Xem Sợi In Bambu →</span>
               </button>
             </div>
           </div>
@@ -691,6 +799,9 @@ export default function App() {
           <TimeScrubber
             state={simulationState}
             onTogglePlay={() => {
+              if (!simulationState.isPlaying) {
+                recordSimulationLog('Chạy mô phỏng');
+              }
               setSimulationState((prev) => {
                 if (prev.isCompleted) {
                   return { ...prev, isPlaying: true, isCompleted: false, currentProgress: 0 };

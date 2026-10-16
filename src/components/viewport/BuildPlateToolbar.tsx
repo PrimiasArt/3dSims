@@ -140,14 +140,11 @@ export const BuildPlateToolbar: React.FC<BuildPlateToolbarProps> = ({
 
   return (
     <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-auto flex flex-col items-center select-none">
-      {/* 1. Main Floating Gizmo Dock (Bambu Studio Style - Clean, Compact, No Overlap) */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full glass-panel border border-white/20 bg-slate-950/80 shadow-2xl backdrop-blur-2xl text-white">
+      {/* 1. Minimalist Architectural Gizmo Dock */}
+      <div className="flex items-center gap-1 p-1 rounded-xl glass-panel">
         {/* Model Dimensions Info */}
-        <div className="flex items-center gap-2 pr-2 border-r border-white/10 hidden sm:flex">
-          <div className="w-5 h-5 rounded-md bg-teal-500/20 text-teal-400 flex items-center justify-center">
-            <Compass className="w-3.5 h-3.5" />
-          </div>
-          <div className="text-[10px] font-mono text-white/70">
+        <div className="flex items-center gap-2 px-2.5 py-1 border-r studio-border hidden sm:flex">
+          <div className="text-[11px] font-mono studio-text-secondary">
             {Math.round(currentDim[0])} × {Math.round(currentDim[2])} × {Math.round(currentDim[1])} mm
           </div>
         </div>
@@ -155,17 +152,14 @@ export const BuildPlateToolbar: React.FC<BuildPlateToolbarProps> = ({
         {/* Tab Buttons */}
         <button
           onClick={() => setActiveTab(activeTab === 'move' ? null : 'move')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'move'
-              ? 'bg-teal-400 text-black shadow-md shadow-teal-500/30'
-              : 'text-white/80 hover:text-white hover:bg-white/10'
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+            activeTab === 'move' ? 'studio-pill-active' : 'studio-pill-inactive font-medium'
           }`}
           title="Di chuyển mô hình trên bàn in"
         >
-          <Move className="w-3.5 h-3.5" />
           <span>Vị Trí</span>
           {posX !== 0 || posZ !== 0 ? (
-            <span className="text-[9px] font-mono px-1 rounded bg-black/20 text-teal-200">
+            <span className="text-[9px] font-mono px-1 rounded studio-gold-badge">
               {posX},{posZ}
             </span>
           ) : null}
@@ -173,17 +167,14 @@ export const BuildPlateToolbar: React.FC<BuildPlateToolbarProps> = ({
 
         <button
           onClick={() => setActiveTab(activeTab === 'rotate' ? null : 'rotate')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'rotate'
-              ? 'bg-teal-400 text-black shadow-md shadow-teal-500/30'
-              : 'text-white/80 hover:text-white hover:bg-white/10'
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+            activeTab === 'rotate' ? 'studio-pill-active' : 'studio-pill-inactive font-medium'
           }`}
           title="Xoay mô hình theo các góc"
         >
-          <RotateCw className="w-3.5 h-3.5" />
-          <span>Xoay</span>
+          <span>Xoay Góc</span>
           {rotYDeg !== 0 ? (
-            <span className="text-[9px] font-mono px-1 rounded bg-black/20 text-teal-200">
+            <span className="text-[9px] font-mono px-1 rounded studio-gold-badge">
               {rotYDeg}°
             </span>
           ) : null}
@@ -191,71 +182,65 @@ export const BuildPlateToolbar: React.FC<BuildPlateToolbarProps> = ({
 
         <button
           onClick={() => setActiveTab(activeTab === 'scale' ? null : 'scale')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'scale'
-              ? 'bg-teal-400 text-black shadow-md shadow-teal-500/30'
-              : 'text-white/80 hover:text-white hover:bg-white/10'
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] transition-all cursor-pointer ${
+            activeTab === 'scale' ? 'studio-pill-active' : 'studio-pill-inactive font-medium'
           }`}
           title="Phóng to / Thu nhỏ kích thước"
         >
-          <Maximize2 className="w-3.5 h-3.5" />
           <span>Tỉ Lệ</span>
           {scalePercent !== 100 ? (
-            <span className="text-[9px] font-mono px-1 rounded bg-black/20 text-teal-200">
+            <span className="text-[9px] font-mono px-1 rounded studio-gold-badge">
               {scalePercent}%
             </span>
           ) : null}
         </button>
 
-        <div className="w-[1px] h-4 bg-white/15 mx-1" />
+        <div className="w-[1px] h-4 bg-[var(--border-hairline)] mx-0.5" />
 
         {/* Quick Slicer Actions */}
         <button
           onClick={handleMakeStandUp}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/15 transition-all cursor-pointer"
+          className="px-2.5 py-1 rounded-lg text-[11px] font-medium studio-pill-inactive transition-all cursor-pointer"
           title="Dựng đứng mô hình thẳng góc chuẩn (0°, 0°, 0°)"
         >
-          <ArrowUp className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">Dựng Đứng</span>
+          <span>Dựng Đứng</span>
         </button>
 
         <button
           onClick={onAutoLayFlat}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/15 transition-all cursor-pointer"
+          className="px-2.5 py-1 rounded-lg text-[11px] font-medium studio-gold-badge transition-all cursor-pointer"
           title="Tự động lật mặt phẳng tiếp xúc lớn nhất xuống đáy (Auto Lay Flat)"
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">Nằm Phẳng</span>
+          <span>Đặt Phẳng</span>
         </button>
 
         <button
           onClick={handleFlip180}
-          className="flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-semibold text-amber-300 hover:text-amber-200 hover:bg-amber-500/15 transition-all cursor-pointer"
-          title="Lật ngược 180° (Sửa nhanh mô hình bị nằm ngửa phơi bụng)"
+          className="px-2.5 py-1 rounded-lg text-[11px] font-medium studio-pill-inactive transition-all cursor-pointer"
+          title="Lật ngược 180° quanh trục X"
         >
-          <Repeat className="w-3.5 h-3.5" />
-          <span className="hidden lg:inline">Lật 180°</span>
+          <span>Lật 180°</span>
         </button>
 
         <button
           onClick={onResetTransform}
-          className="p-1.5 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+          className="px-2 py-1 rounded-lg text-[11px] studio-pill-inactive transition-all cursor-pointer font-mono"
           title="Khôi phục vị trí, góc xoay và tỉ lệ 100% ban đầu"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
+          Reset
         </button>
       </div>
 
-      {/* 2. Popover Tool Panel (Renders cleanly under the dock when a tool is active) */}
+      {/* 2. Popover Tool Panel */}
       {activeTab && (
-        <div className="mt-2 p-3 rounded-2xl glass-panel border border-white/20 bg-slate-950/90 shadow-2xl backdrop-blur-2xl text-white w-72 animate-in fade-in zoom-in-95 duration-150">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-            <span className="text-xs font-black uppercase text-teal-300 tracking-wider">
-              {activeTab === 'move' ? 'Điều Chỉnh Tọa Độ Bàn In' : activeTab === 'rotate' ? 'Xoay & Định Hướng' : 'Tỉ Lệ Kích Thước'}
+        <div className="mt-2 p-3 rounded-2xl glass-panel w-72 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b studio-border">
+            <span className="text-[11px] font-semibold uppercase studio-text-gold tracking-wider">
+              {activeTab === 'move' ? 'Tọa Độ Bàn In' : activeTab === 'rotate' ? 'Định Hướng Góc Xoay' : 'Tỉ Lệ Kích Thước'}
             </span>
             <button
               onClick={() => setActiveTab(null)}
-              className="p-1 rounded-md text-white/40 hover:text-white hover:bg-white/10"
+              className="p-1 rounded-md studio-pill-inactive"
             >
               <X className="w-3.5 h-3.5" />
             </button>
