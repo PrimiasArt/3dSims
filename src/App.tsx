@@ -584,9 +584,9 @@ export default function App() {
         onOpenAI3DModal={() => setIsAI3DModalOpen(true)}
       />
 
-      {/* Engine 2: Pro Slicer Local Telemetry HUD (Khi chọn Engine 2: Pro Local Core) */}
+      {/* Engine 2: Pro Slicer Local Telemetry HUD (Đặt góc dưới trái để không đè bảng Slicing Result bên phải) */}
       {simulatorEngine === 'pro_local' && (
-        <div className="fixed top-20 right-20 z-20 pointer-events-auto">
+        <div className="fixed bottom-28 left-4 z-20 pointer-events-auto">
           <ProSlicerTelemetryPanel
             telemetry={proTelemetry}
             state={simulationState}
@@ -597,7 +597,7 @@ export default function App() {
 
       {/* Notification Toast khi Bambu Studio CLI đang cắt lát */}
       {uploadSlicingStatus && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-2.5 bg-emerald-950/95 border border-emerald-500/60 rounded-full shadow-2xl backdrop-blur-md text-emerald-300 text-xs font-semibold animate-pulse">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-2.5 bg-emerald-950/95 border border-emerald-500/60 rounded-xl shadow-2xl backdrop-blur-md text-emerald-300 text-xs font-semibold animate-pulse">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
           <span>{uploadSlicingStatus}</span>
         </div>
@@ -615,6 +615,7 @@ export default function App() {
           showToolhead={showToolhead}
           showSupport={showSupport}
           cameraView={cameraView}
+          onSetCameraView={setCameraView}
           renderMode={renderMode}
           viewMode={viewMode}
           onToggleViewMode={setViewMode}
@@ -649,24 +650,56 @@ export default function App() {
         onOpenLocalSlicerModal={() => setIsLocalSlicerModalOpen(true)}
       />
 
-      {/* 4. Bottom Floating Time Scrubber Bar */}
-      <div className="fixed bottom-4 left-4 right-4 z-20 pointer-events-auto">
-        <TimeScrubber
-          state={simulationState}
-          onTogglePlay={() => {
-            setSimulationState((prev) => {
-              if (prev.isCompleted) {
-                return { ...prev, isPlaying: true, isCompleted: false, currentProgress: 0 };
-              }
-              return { ...prev, isPlaying: !prev.isPlaying };
-            });
-          }}
-          onSetSpeed={(speed: PlaybackSpeed) => setSimulationState((prev) => ({ ...prev, playbackSpeed: speed }))}
-          onScrubProgress={handleScrubProgress}
-          onStepLayer={handleStepLayer}
-          onReset={handleReset}
-          onInstantFinish={handleInstantFinish}
-        />
+      {/* 4. Bottom Dock: Prepare Stage Action Bar OR Playback Timeline Scrubber */}
+      <div className="fixed bottom-3 left-3 right-3 z-20 pointer-events-auto">
+        {viewMode === 'prepare' ? (
+          <div className="w-full max-w-4xl mx-auto px-4 py-2 rounded-2xl glass-panel border border-white/15 shadow-2xl flex items-center justify-between gap-4 whitespace-nowrap">
+            <div className="flex items-center gap-3 text-xs">
+              <span className="px-2.5 py-1 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-400/30 font-extrabold">
+                🛠️ Chế Độ Chuẩn Bị Bàn In
+              </span>
+              <span className="text-slate-300 font-mono text-[11px] hidden sm:inline">
+                Kích thước: <strong className="text-white">{Math.round(slicingMetrics.boundingBox.dimensions[0])} × {Math.round(slicingMetrics.boundingBox.dimensions[2])} × {Math.round(slicingMetrics.boundingBox.dimensions[1])} mm</strong>
+              </span>
+              <span className="text-slate-400 font-mono text-[11px] hidden md:inline">
+                • Overhang: <strong className="text-amber-300">{preflightReport.overhangRiskAreaPercent}%</strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setViewMode('cad')}
+                className="px-3.5 py-1.5 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-teal-500/20"
+              >
+                📐 Cắt Lớp &amp; Mô Phỏng CAD →
+              </button>
+              <button
+                onClick={() => setViewMode('filament_preview')}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-emerald-500/20"
+              >
+                🧵 Xem Sợi In Bambu →
+              </button>
+            </div>
+          </div>
+        ) : (
+          <TimeScrubber
+            state={simulationState}
+            onTogglePlay={() => {
+              setSimulationState((prev) => {
+                if (prev.isCompleted) {
+                  return { ...prev, isPlaying: true, isCompleted: false, currentProgress: 0 };
+                }
+                return { ...prev, isPlaying: !prev.isPlaying };
+              });
+            }}
+            onSetSpeed={(speed: PlaybackSpeed) => setSimulationState((prev) => ({ ...prev, playbackSpeed: speed }))}
+            onScrubProgress={handleScrubProgress}
+            onStepLayer={handleStepLayer}
+            onReset={handleReset}
+            onInstantFinish={handleInstantFinish}
+            defects={preflightReport.errors}
+          />
+        )}
       </div>
 
       {/* 5. Pre-flight Defect Inspection Modal */}

@@ -45,6 +45,7 @@ interface PrintSimulatorViewportProps {
   showToolhead: boolean;
   showSupport: boolean;
   cameraView: 'iso' | 'top' | 'front' | 'nozzle';
+  onSetCameraView?: (view: 'iso' | 'top' | 'front' | 'nozzle') => void;
   renderMode: SlicerRenderMode;
   viewMode?: ViewportDisplayMode;
   onToggleViewMode?: (mode: ViewportDisplayMode) => void;
@@ -71,8 +72,9 @@ export function PrintSimulatorViewport({
   showToolhead,
   showSupport,
   cameraView,
+  onSetCameraView,
   renderMode,
-  viewMode = 'filament_preview',
+  viewMode = 'cad',
   onToggleViewMode,
   modelTransform,
   onChangeTransform,
@@ -677,8 +679,9 @@ export function PrintSimulatorViewport({
     const [dimX, dimY, dimZ] = slicingMetrics.boundingBox.dimensions;
     const progress = Math.min(1.0, Math.max(0.001, simulationState.currentProgress));
     const currentHeightY = progress * dimY;
-    // Chỉ xem là Finished khi simulation thực sự hoàn thành và KHÔNG còn phát loop
-    const isFinished = simulationState.isCompleted && !simulationState.isPlaying;
+    const isPrepareMode = viewMode === 'prepare';
+    // Chỉ xem là Finished khi ở chế độ Chuẩn Bị (Prepare) hoặc khi simulation hoàn thành và KHÔNG còn phát loop
+    const isFinished = isPrepareMode || (simulationState.isCompleted && !simulationState.isPlaying);
     const worldCurrentY = modelTransform.position[1] + (currentHeightY * modelTransform.scale);
 
     // 3.1 Cắt lớp mô hình tại độ cao hiện tại
@@ -831,9 +834,10 @@ export function PrintSimulatorViewport({
     activeDefect,
   ]);
 
-  // 3.5 Đồng bộ hóa chế độ hiển thị View Mode (Phôi CAD mượt <-> Sợi In Thực Tế Bambu Preview)
+  // 3.5 Đồng bộ hóa chế độ hiển thị View Mode (Prepare <-> Phôi CAD mượt <-> Sợi In Thực Tế Bambu Preview)
   useEffect(() => {
     const isFilament = viewMode === 'filament_preview';
+    const isPrepare = viewMode === 'prepare';
 
     if (isFilament && (!fullFilamentGroupRef.current || fullFilamentGroupRef.current.children.length === 0)) {
       loadFullBambuToolpaths(currentModel?.name || currentModel?.id, (currentModel as any)?.path).then((toolpathsData) => {
@@ -874,13 +878,13 @@ export function PrintSimulatorViewport({
       modelMeshRef.current.visible = !showFilament;
     }
     if (ghostMeshRef.current) {
-      ghostMeshRef.current.visible = !showFilament && simulationState.currentProgress < 0.999;
+      ghostMeshRef.current.visible = !showFilament && !isPrepare && simulationState.currentProgress < 0.999;
     }
     if (supportGroupRef.current) {
       supportGroupRef.current.visible = !showFilament && showSupport;
     }
     if (activeSliceGroupRef.current) {
-      activeSliceGroupRef.current.visible = !showFilament;
+      activeSliceGroupRef.current.visible = !showFilament && !isPrepare;
     }
   }, [
     viewMode,
@@ -1018,14 +1022,29 @@ export function PrintSimulatorViewport({
     setTimeout(() => setFixedNotice(null), 3500);
   };
 
+  // Tính toán khối lượng nhựa thực tế (Model + Support) dựa trên slicingMetrics
+  const totalGrams = Math.max(1.2, slicingMetrics.estimatedFilamentGrams);
+  const supportRatio =
+    profile.supportMode === 'none'
+      ? 0
+      : Math.min(0.28, Math.max(0.08, (preflightReport.overhangRiskAreaPercent || 12) * 0.008));
+  const supportGrams = Number((totalGrams * supportRatio).toFixed(1));
+  const modelGrams = Number(Math.max(0.8, totalGrams - supportGrams).toFixed(1));
+  const totalMeters = Number((totalGrams / 2.98).toFixed(1));
+  const currentZMm = (simulationState.currentProgress * slicingMetrics.boundingBox.dimensions[1]).toFixed(2);
+  const layerPercent =
+    simulationState.totalLayers > 1
+      ? Math.max(0, Math.min(100, (simulationState.currentLayer / simulationState.totalLayers) * 100))
+      : 100;
+
   return (
     <div
-      className="relative w-full h-full overflow-hidden select-none bg-[#080a10]"
+      className="relative w-full h-full overflow-hidden select-none bg-[#070a10]"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Three.js Canvas Container với sự kiện tương tác kéo thả trên bàn in */}
+      {/* Three.js Canvas Container */}
       <div
         ref={containerRef}
         onPointerDown={handlePointerDown}
@@ -1034,216 +1053,282 @@ export function PrintSimulatorViewport({
         className="w-full h-full cursor-grab active:cursor-grabbing"
       />
 
-      {/* Bảng Điều Khiển Tương Tác Bàn In (Build Plate Toolbar Slicer) */}
-      <BuildPlateToolbar
-        transform={modelTransform}
-        dimensions={slicingMetrics.boundingBox.dimensions}
-        onChangeTransform={onChangeTransform}
-        onResetTransform={onResetTransform}
-        onAutoLayFlat={onAutoLayFlat}
-        activeGizmoMode={activeGizmoMode}
-        onToggleGizmoMode={setActiveGizmoMode}
-      />
+      {/* 1. Bảng Điều Khiển Đặt Bàn In (Chỉ hiển thị khi ở chế độ 🛠️ Chuẩn Bị để không che vùng nhìn mô phỏng) */}
+      {viewMode === 'prepare' && (
+        <BuildPlateToolbar
+          transform={modelTransform}
+          dimensions={slicingMetrics.boundingBox.dimensions}
+          onChangeTransform={onChangeTransform}
+          onResetTransform={onResetTransform}
+          onAutoLayFlat={onAutoLayFlat}
+          activeGizmoMode={activeGizmoMode}
+          onToggleGizmoMode={setActiveGizmoMode}
+        />
+      )}
 
       {/* Drag & Drop Overlay */}
       {isDraggingFile && (
         <div className="absolute inset-0 z-40 bg-teal-950/80 backdrop-blur-md flex flex-col items-center justify-center border-4 border-dashed border-teal-400 m-4 rounded-3xl animate-in fade-in">
           <UploadCloud className="w-16 h-16 text-teal-300 animate-bounce mb-3" />
-          <h2 className="text-xl font-black text-white">Thả file STL / OBJ vào đây</h2>
-          <p className="text-sm text-teal-200 mt-1">Hệ thống sẽ tự động bóc tách lớp và chạy mô phỏng in 3D ngay</p>
+          <h2 className="text-xl font-black text-white">Thả file 3MF / STL / OBJ vào đây</h2>
+          <p className="text-sm text-teal-200 mt-1">Hệ thống sẽ tự động bóc tách lớp và dựng Tree Support ngay</p>
         </div>
       )}
 
-      {/* Vertical Layer Slicer Slider (Bên phải màn hình - Chuẩn Slicer) */}
-      <div className="absolute right-4 top-24 bottom-32 z-20 flex flex-col items-center justify-between p-2 rounded-2xl glass-panel border border-white/15 backdrop-blur-xl shadow-2xl pointer-events-auto w-12">
-        <button
-          onClick={() => onStepLayer(10)}
-          className="p-1 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-all cursor-pointer"
-          title="Nhảy tới 10 lớp"
-        >
-          <ChevronUp className="w-4 h-4" />
-        </button>
+      {/* 2. Custom Full-Height Vertical Layer Scrubber (Chỉ hiện ở chế độ Mô Phỏng CAD / Sợi In Bambu) */}
+      {viewMode !== 'prepare' && (
+        <div className="absolute right-3.5 top-16 bottom-24 z-20 flex flex-col items-center justify-between py-2.5 px-1.5 rounded-2xl glass-panel border border-white/15 pointer-events-auto w-12">
+          <button
+            onClick={() => onStepLayer(10)}
+            className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-all cursor-pointer"
+            title="Tăng 10 lớp (+10 Layers)"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </button>
 
-        {/* Vertical Range Track */}
-        <div className="flex-1 flex flex-col items-center justify-center my-2 relative w-full">
-          <input
-            data-testid="vertical-layer-slider"
-            type="range"
-            min="1"
-            max={simulationState.totalLayers}
-            value={simulationState.currentLayer}
-            onChange={(e) => onScrubProgress(Number(e.target.value) / simulationState.totalLayers)}
-            className="w-40 -rotate-90 cursor-pointer accent-teal-400"
-            title="Kéo trượt dọc để duyệt từng lớp cắt (Layer by Layer)"
-          />
-        </div>
+          {/* Full-Height Custom Vertical Track */}
+          <div className="relative flex-1 w-full my-2 flex justify-center">
+            {/* Background Track Rail */}
+            <div className="relative w-2 h-full rounded-full bg-white/10 border border-white/10 overflow-hidden">
+              {/* Active Fill Bar from bottom */}
+              <div
+                className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-teal-500 to-emerald-400 rounded-full transition-all duration-75"
+                style={{ height: `${layerPercent}%` }}
+              />
+              {/* Reference Tick Marks (25%, 50%, 75%) */}
+              <div className="absolute bottom-1/4 left-0 right-0 h-[1px] bg-white/25" />
+              <div className="absolute bottom-2/4 left-0 right-0 h-[1px] bg-white/25" />
+              <div className="absolute bottom-3/4 left-0 right-0 h-[1px] bg-white/25" />
+            </div>
 
-        <div className="text-center font-mono">
-          <div className="text-[10px] text-teal-300 font-black">L{simulationState.currentLayer}</div>
-          <div className="text-[8px] text-white/40">/{simulationState.totalLayers}</div>
-        </div>
-
-        <button
-          onClick={() => onStepLayer(-10)}
-          className="p-1 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-all cursor-pointer mt-1"
-          title="Lùi lại 10 lớp"
-        >
-          <ChevronDown className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Bambu Studio "Slicing Result" Legend Card (Chuẩn xác như màn hình Bambu Studio trong video của người dùng) */}
-      <div className="absolute top-20 right-20 z-10 pointer-events-auto select-none transition-all">
-        {showSlicingLegend ? (
-          <div className="w-64 rounded-2xl glass-panel border border-white/20 bg-slate-950/85 p-3.5 shadow-2xl backdrop-blur-2xl text-xs space-y-2.5 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#00e050] animate-pulse" />
-                <span className="font-black text-white text-xs tracking-wide">Slicing Result</span>
-                <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-white/70">Bambu</span>
+            {/* Visual Thumb Handle + Floating Z-Height Tooltip */}
+            <div
+              className="pointer-events-none absolute left-1/2 -translate-x-1/2 w-5 h-3 rounded-md bg-emerald-400 border-2 border-white shadow-[0_0_12px_rgba(52,211,153,0.9)] transition-all duration-75 flex items-center justify-center"
+              style={{ bottom: `calc(${layerPercent}% - 6px)` }}
+            >
+              <div className="absolute right-7 px-2 py-0.5 rounded-md bg-slate-950/95 border border-emerald-400/40 text-[10px] font-mono font-bold text-emerald-300 whitespace-nowrap shadow-lg">
+                L{simulationState.currentLayer} • {currentZMm}mm
               </div>
+            </div>
+
+            {/* Native Range Input Stretched Vertically Over Track for Drag & Automated Tests */}
+            <input
+              data-testid="vertical-layer-slider"
+              type="range"
+              min="1"
+              max={simulationState.totalLayers}
+              value={simulationState.currentLayer}
+              onChange={(e) => onScrubProgress(Number(e.target.value) / simulationState.totalLayers)}
+              style={{
+                writingMode: 'vertical-lr',
+                direction: 'rtl',
+              }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize z-10"
+              title="Kéo dọc để cắt lớp từ đáy lên đỉnh (Layer Scrubbing)"
+            />
+          </div>
+
+          <div className="text-center font-mono leading-tight">
+            <div className="text-[10px] text-emerald-300 font-black">L{simulationState.currentLayer}</div>
+            <div className="text-[8px] text-slate-400">/{simulationState.totalLayers}</div>
+          </div>
+
+          <button
+            onClick={() => onStepLayer(-10)}
+            className="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-all cursor-pointer mt-1"
+            title="Lùi 10 lớp (-10 Layers)"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 3. Unified Right Studio HUD Stack (Camera View Presets + Slicing Result + Overhang Scale — Không chồng chéo) */}
+      <div
+        className={`absolute top-16 ${
+          viewMode === 'prepare' ? 'right-4' : 'right-18'
+        } z-10 flex flex-col items-end gap-2 pointer-events-auto select-none transition-all`}
+      >
+        {/* 3.1 Quick Camera Orientation Bar (3D ViewCube Presets) */}
+        {onSetCameraView && (
+          <div className="flex items-center gap-0.5 p-1 rounded-xl glass-panel border border-white/15">
+            {(['iso', 'front', 'top', 'nozzle'] as const).map((v) => (
               <button
-                onClick={() => setShowSlicingLegend(false)}
-                className="text-white/40 hover:text-white p-0.5 rounded transition-colors cursor-pointer"
-                title="Thu gọn"
+                key={v}
+                onClick={() => onSetCameraView(v)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                  cameraView === v
+                    ? 'bg-teal-400 text-slate-950 font-extrabold shadow-xs'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+                title={`Góc nhìn Camera: ${v.toUpperCase()}`}
               >
-                <X className="w-3.5 h-3.5" />
+                {v === 'iso' ? '3D Iso' : v === 'front' ? 'Trước' : v === 'top' ? 'Đỉnh' : 'Nozzle'}
               </button>
-            </div>
+            ))}
+          </div>
+        )}
 
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-white/50">Color Scheme:</span>
-              <span className="font-bold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                {viewMode === 'filament_preview' ? 'Filament Lines' : 'Line Type'}
-              </span>
-            </div>
+        {/* 3.2 Unified Bambu Studio "Slicing Result" & Live Telemetry Card */}
+        {viewMode !== 'prepare' && (
+          <>
+            {showSlicingLegend ? (
+              <div className="w-64 rounded-2xl glass-panel border border-white/15 p-3.5 shadow-2xl text-xs space-y-2.5 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#00e050] animate-pulse" />
+                    <span className="font-extrabold text-white text-xs tracking-wide">Slicing Result</span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                      {viewMode === 'filament_preview' ? 'G-Code' : 'CAD Slice'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setShowSlicingLegend(false)}
+                    className="text-slate-400 hover:text-white p-0.5 rounded transition-colors cursor-pointer"
+                    title="Thu gọn bảng thông số"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-            {/* Bảng mã màu các loại đường in chuẩn Bambu Studio */}
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10px] font-medium pt-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#00e050] shrink-0" />
-                <span className="text-white/90 font-bold truncate">Tường ngoài</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#047857] shrink-0" />
-                <span className="text-white/80 truncate">Tường trong</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#f59e0b] shadow-[0_0_8px_rgba(245,158,11,0.6)] shrink-0" />
-                <span className="text-amber-300 font-bold truncate">Ruột Infill ({profile.infillDensity}%)</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#10b981] shrink-0" />
-                <span className="text-emerald-300 font-bold truncate">Tree Support</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#d946ef] shrink-0" />
-                <span className="text-fuchsia-300 truncate">Interface</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-[#c026d3] shrink-0" />
-                <span className="text-purple-300 truncate">Vành Brim</span>
-              </div>
-              <div className="flex items-center gap-1.5 col-span-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#ffffff] ring-1 ring-white/60 shrink-0" />
-                <span className="text-white font-bold truncate">Mối nối Seam</span>
-              </div>
-            </div>
+                {/* Color Scheme Legend */}
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10px] font-medium">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#00e050] shrink-0" />
+                    <span className="text-slate-200 font-semibold truncate">Tường ngoài</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#047857] shrink-0" />
+                    <span className="text-slate-300 truncate">Tường trong</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#f59e0b] shrink-0" />
+                    <span className="text-amber-300 font-semibold truncate">
+                      Ruột ({profile.infillDensity}%)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#10b981] shrink-0" />
+                    <span className="text-emerald-300 font-semibold truncate">Tree Support</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#d946ef] shrink-0" />
+                    <span className="text-fuchsia-300 truncate">Mặt tiếp xúc</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-white ring-1 ring-white/50 shrink-0" />
+                    <span className="text-slate-200 truncate">Mối nối Seam</span>
+                  </div>
+                </div>
 
-            {/* Thông số tiêu hao nhựa & Thời gian in từ Bambu Studio */}
-            <div className="border-t border-white/10 pt-2 space-y-1 font-mono text-[10px]">
-              <div className="flex items-center justify-between text-white/70">
-                <span>Vật in (Model):</span>
-                <span className="text-white font-bold">44.5 g</span>
+                {/* Real Dynamic Filament & Support Weight Breakdown */}
+                <div className="border-t border-white/10 pt-2 space-y-1 font-mono text-[10px]">
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span>Phôi in (Model):</span>
+                    <span className="text-white font-bold">{modelGrams} g</span>
+                  </div>
+                  <div className="flex items-center justify-between text-emerald-400">
+                    <span>Cây đỡ (Support):</span>
+                    <span className="font-bold">{supportGrams} g</span>
+                  </div>
+                  <div className="flex items-center justify-between text-teal-300 pt-1 border-t border-white/5">
+                    <span className="font-bold">Tổng Nhựa:</span>
+                    <span className="font-black text-[11px]">
+                      {totalGrams.toFixed(1)} g ({totalMeters}m)
+                    </span>
+                  </div>
+                </div>
+
+                {/* Integrated Live Z-Height & Active Extrusion Task (Replaces bottom-left floating box) */}
+                <div className="border-t border-white/10 pt-2 flex items-center justify-between text-[10px] font-mono">
+                  <div className="text-slate-400">
+                    Z: <strong className="text-teal-300">{currentZMm}mm</strong>
+                  </div>
+                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-amber-300 font-bold uppercase text-[9px]">
+                    {simulationState.activeToolpathType === 'perimeter'
+                      ? 'Wall'
+                      : simulationState.activeToolpathType === 'infill'
+                      ? `Infill (${profile.infillType})`
+                      : simulationState.activeToolpathType === 'support'
+                      ? 'Support'
+                      : 'Travel'}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-emerald-400">
-                <span>Cây đỡ (Support):</span>
-                <span className="font-bold">6.1 g</span>
+            ) : (
+              <button
+                onClick={() => setShowSlicingLegend(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-panel border border-white/15 text-white hover:border-teal-400/50 text-xs font-bold transition-all cursor-pointer"
+                title="Mở bảng chú giải màu & khối lượng nhựa Bambu Studio"
+              >
+                <span className="w-2 h-2 rounded-full bg-[#00e050]" />
+                <span>Slicing Result</span>
+              </button>
+            )}
+          </>
+        )}
+
+        {/* 3.3 Overhang Heatmap Scale Indicator (Stacks cleanly underneath Slicing Result without overlap) */}
+        {(showHeatmap || renderMode === 'defects') && (
+          <div className="w-64 p-3 rounded-2xl glass-panel-danger border border-rose-500/40 text-xs space-y-1.5 shadow-2xl animate-in fade-in">
+            <div className="flex items-center gap-1.5 font-bold text-rose-300">
+              <Flame className="w-3.5 h-3.5 text-rose-400" />
+              <span>Thước Đo Góc Overhang</span>
+            </div>
+            <div className="space-y-1 text-[10px]">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] shrink-0" />
+                <span>Góc &gt; 50° (Cần nhánh Tree Support)</span>
               </div>
-              <div className="flex items-center justify-between text-teal-300 pt-1 border-t border-white/5">
-                <span className="font-bold">Tổng Nhựa:</span>
-                <span className="font-black text-xs">50.6 g (17.1m)</span>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
+                <span>Góc 40° – 50° (Nguy cơ nhăn mép)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#2DD4BF] shrink-0" />
+                <span>Góc &lt; 40° (Tự đỡ an toàn)</span>
               </div>
             </div>
           </div>
-        ) : (
-          <button
-            onClick={() => setShowSlicingLegend(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full glass-panel border border-white/20 bg-slate-950/80 text-white hover:border-teal-400/50 shadow-xl backdrop-blur-xl text-xs font-bold transition-all cursor-pointer"
-            title="Mở bảng chú giải màu Bambu Studio"
-          >
-            <span className="w-2 h-2 rounded-full bg-[#00e050]" />
-            <span>Slicing Result</span>
-          </button>
         )}
       </div>
 
-      {/* Layer Coordinate & Real-time Nozzle Telemetry HUD (Góc dưới bên trái) */}
-      <div className="absolute bottom-24 left-4 z-10 pointer-events-none p-3.5 rounded-2xl glass-panel border border-white/15 max-w-xs space-y-1.5 text-xs shadow-2xl backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-white/60 font-semibold text-[11px]">Cao Độ Trục Z:</span>
-          <span className="font-mono font-black text-teal-300 text-sm">
-            {(simulationState.currentProgress * slicingMetrics.boundingBox.dimensions[1]).toFixed(2)} mm
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-white/60 font-semibold text-[11px]">Lớp Đang Đùn:</span>
-          <span className="font-mono font-bold text-white text-xs">
-            Lớp {simulationState.currentLayer} / {simulationState.totalLayers}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/10">
-          <span className="text-white/60 font-semibold text-[11px]">Tác Vụ Hiện Tại:</span>
-          <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-md bg-white/10 uppercase text-amber-300">
-            {simulationState.activeToolpathType === 'perimeter'
-              ? 'Tường Ngoài (Wall)'
-              : simulationState.activeToolpathType === 'infill'
-              ? `Ruột (${profile.infillType})`
-              : simulationState.activeToolpathType === 'support'
-              ? 'Cột Support'
-              : simulationState.activeToolpathType === 'brim'
-              ? 'Vành Brim'
-              : 'Di Chuyển Nhanh'}
-          </span>
-        </div>
-      </div>
-
-      {/* Live Defect Alert Card (Hiển thị góc dưới bên phải - Hoàn toàn không đè thanh công cụ hay drawer) */}
-      {activeDefect && !isDefectDismissed && (
-        <div className="absolute bottom-36 right-20 max-w-sm sm:max-w-md z-20 pointer-events-auto p-4 rounded-2xl bg-rose-950/90 border border-rose-500/70 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-200">
+      {/* 4. Live Defect Alert Card (Góc dưới bên phải - Không đè thanh công cụ) */}
+      {activeDefect && !isDefectDismissed && viewMode !== 'prepare' && (
+        <div className="absolute bottom-28 right-18 max-w-sm z-20 pointer-events-auto p-3.5 rounded-2xl bg-rose-950/95 border border-rose-500/60 text-white shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom duration-200">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-2.5">
-              <div className="p-2 rounded-xl bg-rose-500/30 text-rose-300 shrink-0">
-                <AlertTriangle className="w-5 h-5 text-rose-400 animate-pulse" />
+              <div className="p-1.5 rounded-xl bg-rose-500/25 text-rose-300 shrink-0">
+                <AlertTriangle className="w-4 h-4 text-rose-400 animate-pulse" />
               </div>
               <div>
-                <div className="text-xs font-black uppercase text-rose-300 tracking-wide flex items-center gap-1.5">
+                <div className="text-[11px] font-black uppercase text-rose-300 tracking-wide flex items-center gap-1.5">
                   <span>{activeDefect.title}</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-500/40 text-rose-100">
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-500/35 text-rose-100">
                     Lớp {activeDefect.layer}
                   </span>
                 </div>
-                <p className="text-xs text-rose-100/90 mt-1 leading-snug">{activeDefect.message}</p>
+                <p className="text-[11px] text-rose-100/90 mt-0.5 leading-snug">{activeDefect.message}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               {activeDefect.autoFixAction && (
                 <button
                   onClick={() => handleExecuteAutoFix(activeDefect.autoFixAction!)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-black font-black text-xs transition-all active:scale-95 shadow-md shadow-emerald-500/30 cursor-pointer"
-                  title="AI tự động sửa lỗi và nạp lại cấu hình tối ưu"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 font-black text-[11px] transition-all active:scale-95 cursor-pointer"
+                  title="Tự động áp dụng cấu hình khắc phục"
                 >
-                  <Wand2 className="w-3.5 h-3.5" />
+                  <Wand2 className="w-3 h-3" />
                   <span>AI Sửa</span>
                 </button>
               )}
               <button
                 onClick={() => setIsDefectDismissed(true)}
-                className="p-1.5 rounded-lg text-rose-300 hover:text-white hover:bg-rose-900/50 transition-all cursor-pointer"
-                title="Tạm ẩn cảnh báo lớp này"
+                className="p-1 rounded-lg text-rose-300 hover:text-white hover:bg-rose-900/50 transition-all cursor-pointer"
+                title="Đóng cảnh báo"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1252,33 +1337,9 @@ export function PrintSimulatorViewport({
 
       {/* Auto-Fix Success Notice Toast */}
       {fixedNotice && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-full bg-emerald-500/90 text-black font-extrabold text-xs shadow-2xl flex items-center gap-2 animate-in zoom-in-95">
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-xl bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-2xl flex items-center gap-2 animate-in zoom-in-95">
           <CheckCircle2 className="w-4 h-4 fill-current" />
           <span>{fixedNotice}</span>
-        </div>
-      )}
-
-      {/* Overhang Heatmap Color Scale Indicator (Khi Heatmap hoặc Defects bật) */}
-      {(showHeatmap || renderMode === 'defects') && (
-        <div className="absolute top-18 right-20 z-10 p-3 rounded-2xl glass-panel-danger border border-rose-500/40 text-xs space-y-2 shadow-2xl backdrop-blur-xl animate-in fade-in">
-          <div className="flex items-center gap-1.5 font-bold text-rose-300">
-            <Flame className="w-4 h-4 text-rose-400" />
-            <span>Thước Đo Khuyết Tật & Lỗi</span>
-          </div>
-          <div className="space-y-1 text-[11px]">
-            <div className="flex items-center gap-2">
-              <span className="w-3.5 h-3.5 rounded-full bg-[#EF4444] shrink-0" />
-              <span>Góc nhô &gt; 50° (Rơi sợi Spaghetti)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3.5 h-3.5 rounded-full bg-[#F59E0B] shrink-0" />
-              <span>Góc 40° - 50° (Nguy cơ nhăn mép)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3.5 h-3.5 rounded-full bg-[#2DD4BF] shrink-0" />
-              <span>Góc &lt; 40° (Bề mặt láng mịn)</span>
-            </div>
-          </div>
         </div>
       )}
     </div>
