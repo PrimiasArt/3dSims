@@ -60,18 +60,18 @@ export function sliceUniversalGeometry(
   const interfaceLines: number[] = [];
   const brimLines: number[] = [];
 
-  // Vành Brim đồng tâm ở bàn in (Layer 1)
+  // Vành Brim gọn sát chân mẫu ở bàn in (Layer 1)
   const baseCenter = new THREE.Vector3(
     (bbox.min.x + bbox.max.x) / 2,
     0.20,
     (bbox.min.z + bbox.max.z) / 2
   );
   const baseRadius = Math.max(
-    30,
-    Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z) * 0.55 + 6.0
+    8,
+    Math.max(bbox.max.x - bbox.min.x, bbox.max.z - bbox.min.z) * 0.48
   );
 
-  for (let r = baseRadius - 8; r <= baseRadius; r += 1.2) {
+  for (let r = baseRadius; r <= baseRadius + 1.6; r += 0.8) {
     const segCount = 48;
     for (let s = 0; s < segCount; s++) {
       const a1 = (s / segCount) * Math.PI * 2;
@@ -84,12 +84,8 @@ export function sliceUniversalGeometry(
     }
   }
 
-  // Tạo các cành Organic Tree Support cho từng cụm Overhang
-  const targetPatches = overhangs.length > 0 ? overhangs : [
-    { center: new THREE.Vector3((bbox.min.x + bbox.max.x) / 2 - 12, height * 0.45, (bbox.min.z + bbox.max.z) / 2 - 8), area: 15, severity: 'high' as const, angleDeg: 35 },
-    { center: new THREE.Vector3((bbox.min.x + bbox.max.x) / 2 + 12, height * 0.45, (bbox.min.z + bbox.max.z) / 2 - 8), area: 15, severity: 'high' as const, angleDeg: 35 },
-    { center: new THREE.Vector3((bbox.min.x + bbox.max.x) / 2, height * 0.55, (bbox.min.z + bbox.max.z) / 2 + 12), area: 20, severity: 'medium' as const, angleDeg: 40 },
-  ];
+  // Tạo các cành Organic Tree Support cho chế độ Filament Preview
+  const targetPatches = overhangs.length > 0 ? overhangs : [];
 
   targetPatches.forEach((patch, patchIdx) => {
     const rawCenter: any = patch.center;
@@ -99,17 +95,18 @@ export function sliceUniversalGeometry(
       ? rawCenter
       : new THREE.Vector3(rawCenter?.x || 0, rawCenter?.y || 0, rawCenter?.z || 0);
 
-    // Chân cành trên mặt bàn in (hơi mở rộng ra ngoài)
-    const baseDir = new THREE.Vector2(tip.x - baseCenter.x, tip.z - baseCenter.z).normalize();
+    const baseDir = new THREE.Vector2(tip.x - baseCenter.x, tip.z - baseCenter.z);
+    if (baseDir.lengthSq() > 0.001) baseDir.normalize();
+    else baseDir.set(1, 0);
+
     const baseRoot = new THREE.Vector3(
-      tip.x + baseDir.x * 6.0,
+      tip.x + baseDir.x * 1.8,
       0.20,
-      tip.z + baseDir.y * 6.0
+      tip.z + baseDir.y * 1.8
     );
 
-    // Vành Brim riêng cho từng gốc cây
-    const rootBrimR = 6.0;
-    for (let r = 2.0; r <= rootBrimR; r += 1.0) {
+    const rootBrimR = 2.4;
+    for (let r = 1.4; r <= rootBrimR; r += 0.5) {
       const segs = 16;
       for (let s = 0; s < segs; s++) {
         const a1 = (s / segs) * Math.PI * 2;
@@ -121,55 +118,36 @@ export function sliceUniversalGeometry(
       }
     }
 
-    // Dựng đường spline thân cây hữu cơ
-    const steps = 30;
-    const trunkPts: THREE.Vector3[] = [];
+    const steps = Math.max(12, Math.round((tip.y - 0.2) / (layerHeight * 2)));
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
-      // Đường cong nội suy tự nhiên
       const currY = baseRoot.y + (tip.y - baseRoot.y) * t;
-      // Độ uốn lượn hữu cơ (organic sway)
-      const sway = Math.sin(t * Math.PI * 2 + patchIdx) * (1 - t) * 3.5;
-      const currX = baseRoot.x + (tip.x - baseRoot.x) * t + sway * baseDir.y;
-      const currZ = baseRoot.z + (tip.z - baseRoot.z) * t + sway * -baseDir.x;
-      trunkPts.push(new THREE.Vector3(currX, currY, currZ));
+      const currX = baseRoot.x + (tip.x - baseRoot.x) * t;
+      const currZ = baseRoot.z + (tip.z - baseRoot.z) * t;
+      const ringR = 1.8 * (1 - t * 0.55);
+      const sides = 12;
+      for (let k = 0; k < sides; k++) {
+        const a1 = (k / sides) * Math.PI * 2;
+        const a2 = ((k + 1) / sides) * Math.PI * 2;
+        const p1x = currX + Math.cos(a1) * ringR;
+        const p1z = currZ + Math.sin(a1) * ringR;
+        const p2x = currX + Math.cos(a2) * ringR;
+        const p2z = currZ + Math.sin(a2) * ringR;
+        if (t > 0.88) {
+          interfaceLines.push(p1x, currY, p1z, p2x, currY, p2z);
+        } else {
+          supportLines.push(p1x, currY, p1z, p2x, currY, p2z);
+        }
+      }
     }
-
-    // Chuyển spline thành các đoạn thẳng nối tiếp
-    const rawSegPoints: number[] = [];
-    for (let s = 0; s < trunkPts.length - 1; s++) {
-      const p1 = trunkPts[s];
-      const p2 = trunkPts[s + 1];
-      rawSegPoints.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-      supportLines.push(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);
-    }
-
-    supportSegments.push({
-      isInterface: false,
-      points: rawSegPoints,
-    });
-
-    // Phần tiếp xúc đỉnh cành (Support Interface)
-    const ifPoints: number[] = [];
-    const ifRadius = 2.5;
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const ix = tip.x + Math.cos(a) * ifRadius;
-      const iz = tip.z + Math.sin(a) * ifRadius;
-      ifPoints.push(tip.x, tip.y, tip.z, ix, tip.y, iz);
-      interfaceLines.push(tip.x, tip.y, tip.z, ix, tip.y, iz);
-    }
-    supportSegments.push({
-      isInterface: true,
-      points: ifPoints,
-    });
   });
 
+  // Để segments = [] cho CAD mode nhằm sử dụng trực tiếp bộ dựng Conformal Tree Support 3D ôm sát tam giác mô hình
   const nativeSupport: INativeSupportData = {
     model: modelName,
-    engine: 'Universal Cloud Slicer (Organic Tree Support)',
+    engine: 'Universal Cloud Slicer (Conformal Tree Support)',
     totalMoves: supportLines.length / 6 + brimLines.length / 6,
-    totalSegments: supportSegments.length,
+    totalSegments: 0,
     segments: supportSegments,
   };
 

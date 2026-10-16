@@ -457,7 +457,8 @@ export function PrintSimulatorViewport({
       profile,
       showSupport && viewMode !== 'filament_preview',
       currentModel?.name || currentModel?.id,
-      (currentModel as any)?.path
+      (currentModel as any)?.path,
+      clippingPlaneRef.current || undefined
     );
     supportGroupRef.current = supportGroup;
 
@@ -1631,7 +1632,8 @@ function updateSupportStructures(
   profile: ISimulationProfile,
   visible: boolean,
   modelIdentifier?: string,
-  modelPath?: string
+  modelPath?: string,
+  clippingPlane?: THREE.Plane
 ): THREE.Group | null {
   // Xóa sạch cấu trúc Support cũ và giải phóng bộ nhớ GPU
   const existingSupport =
@@ -1678,7 +1680,7 @@ function updateSupportStructures(
     brimGeom.translate(centerX, 0.1, centerZ);
 
     const brimMat = new THREE.MeshBasicMaterial({
-      color: 0x22c55e, // Xanh lá cây chuẩn Slicer Brim
+      color: 0x22c55e,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.65,
@@ -1688,7 +1690,21 @@ function updateSupportStructures(
     parent.add(brimMesh);
   }
 
-  // 2. Cấu trúc Tree Support 3D chính thức từ Bambu Studio CLI G-code
+  const applyClipPlane = (root: THREE.Object3D) => {
+    if (!clippingPlane) return;
+    root.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh || (child as THREE.LineSegments).isLineSegments) {
+        const obj = child as THREE.Mesh | THREE.LineSegments;
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach((m) => (m.clippingPlanes = [clippingPlane]));
+        } else if (obj.material) {
+          obj.material.clippingPlanes = [clippingPlane];
+        }
+      }
+    });
+  };
+
+  // 2. Cấu trúc Tree Support 3D chính thức từ Bambu Studio CLI G-code hoặc Conformal Tree Support
   if (profile.supportMode !== 'none' && visible) {
     const supportGroup = new THREE.Group();
     supportGroup.name = 'support_structures_group';
@@ -1698,32 +1714,35 @@ function updateSupportStructures(
     if (cachedNative && cachedNative.segments && cachedNative.segments.length > 0) {
       const nativeMesh = buildNativeSupportMesh(cachedNative);
       nativeMesh.name = 'native_bambu_toolpaths';
+      applyClipPlane(nativeMesh);
       supportGroup.add(nativeMesh);
       return supportGroup;
     }
 
+    // Dựng ngay Conformal Tree Support ôm sát bề mặt mô hình 100% trong lúc chờ/nếu không có G-code native
+    const conformalFallback = generateBambuSupportStructures(geometry, profile);
+    while (conformalFallback.children.length > 0) {
+      supportGroup.add(conformalFallback.children[0]);
+    }
+    applyClipPlane(supportGroup);
+
     loadNativeBambuSupport(modelIdentifier, modelPath).then((nativeData) => {
       if (parent.getObjectByName('support_structures_group') !== supportGroup) return;
 
-      while (supportGroup.children.length > 0) {
-        const child = supportGroup.children[0];
-        supportGroup.remove(child);
-        if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
-          child.geometry?.dispose();
-          if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
-          else child.material?.dispose();
-        }
-      }
-
       if (nativeData && nativeData.segments && nativeData.segments.length > 0) {
+        while (supportGroup.children.length > 0) {
+          const child = supportGroup.children[0];
+          supportGroup.remove(child);
+          if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
+            child.geometry?.dispose();
+            if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+            else child.material?.dispose();
+          }
+        }
         const nativeMesh = buildNativeSupportMesh(nativeData);
         nativeMesh.name = 'native_bambu_toolpaths';
+        applyClipPlane(nativeMesh);
         supportGroup.add(nativeMesh);
-      } else {
-        const fallback = generateBambuSupportStructures(geometry, profile);
-        while (fallback.children.length > 0) {
-          supportGroup.add(fallback.children[0]);
-        }
       }
     });
 

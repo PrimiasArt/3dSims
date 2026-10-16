@@ -1401,22 +1401,24 @@ export function slicerBridgePlugin(): Plugin {
               try {
                 const supportData = JSON.parse(fs.readFileSync(perModelSupportPath, 'utf8'));
                 const toolpathData = JSON.parse(fs.readFileSync(perModelToolpathPath, 'utf8'));
-                res.setHeader('Content-Type', 'application/json');
-                res.end(
-                  JSON.stringify({
-                    success: true,
-                    cached: true,
-                    modelPath: savedFilePath,
-                    fileHash,
-                    supportData,
-                    toolpathData,
-                    totalLayers: toolpathData.totalLayers || 180,
-                    estimatedTimeSec: 3600,
-                    filamentWeightGrams: 25.0,
-                    supportLinesCount: supportData.totalMoves || 0,
-                  })
-                );
-                return;
+                if (supportData && supportData.segments && supportData.segments.length > 0) {
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(
+                    JSON.stringify({
+                      success: true,
+                      cached: true,
+                      modelPath: savedFilePath,
+                      fileHash,
+                      supportData,
+                      toolpathData,
+                      totalLayers: toolpathData.totalLayers || 180,
+                      estimatedTimeSec: 3600,
+                      filamentWeightGrams: 25.0,
+                      supportLinesCount: supportData.totalMoves || 0,
+                    })
+                  );
+                  return;
+                }
               } catch (_) {}
             }
 
@@ -1427,7 +1429,9 @@ export function slicerBridgePlugin(): Plugin {
               const supportData = extractSupportFromGCode(gcodeText, safeName, savedFilePath);
               const toolpathData = extractFullToolpathsFromGCode(gcodeText, safeName);
 
-              fs.writeFileSync(perModelSupportPath, JSON.stringify(supportData));
+              if (supportData.segments.length > 0) {
+                fs.writeFileSync(perModelSupportPath, JSON.stringify(supportData));
+              }
               fs.writeFileSync(perModelToolpathPath, JSON.stringify(toolpathData));
 
               let estimatedTimeSec = 3600;
@@ -1462,21 +1466,28 @@ export function slicerBridgePlugin(): Plugin {
               return;
             }
 
-            // Fallback nếu không có G-code Bambu: sinh support kỹ thuật
-            const techSupport = generateTechnicalTreeSupport(savedFilePath, safeName);
-            fs.writeFileSync(perModelSupportPath, JSON.stringify(techSupport));
+            // Nếu Bambu Studio CLI không xuất được G-code cho file này, trả về supportData rỗng
+            // để Viewport sử dụng trực tiếp bộ dựng Conformal Tree Support 3D ôm sát tam giác mô hình
+            const emptySupport: INativeSupportData = {
+              model: safeName,
+              modelPath: savedFilePath,
+              engine: 'bambu_studio_conformal',
+              totalMoves: 0,
+              totalSegments: 0,
+              segments: [],
+            };
             res.setHeader('Content-Type', 'application/json');
             res.end(
               JSON.stringify({
                 success: true,
                 modelPath: savedFilePath,
                 fileHash,
-                supportData: techSupport,
+                supportData: emptySupport,
                 toolpathData: null,
                 totalLayers: 180,
                 estimatedTimeSec: 3600,
                 filamentWeightGrams: 20.0,
-                supportLinesCount: techSupport.totalMoves || 0,
+                supportLinesCount: 0,
               })
             );
           } catch (err: any) {
@@ -1503,8 +1514,11 @@ export function slicerBridgePlugin(): Plugin {
 
         // 1. Kiểm tra các mô hình mẫu có sẵn pre-cache
         const lowerName = (modelNameParam + ' ' + (modelFilePath || '')).toLowerCase();
+        const nameHashMatch = /upload_([a-f0-9]{12})/i.exec(lowerName);
         let preCacheFile = '';
-        if (lowerName.includes('cow') || lowerName.includes('bò') || lowerName.includes('highland') || lowerName.includes('ogen')) {
+        if (nameHashMatch && fs.existsSync(path.join(tempDir, `support_${nameHashMatch[1]}.json`))) {
+          preCacheFile = path.join(tempDir, `support_${nameHashMatch[1]}.json`);
+        } else if (lowerName.includes('cow') || lowerName.includes('bò') || lowerName.includes('highland') || lowerName.includes('ogen')) {
           preCacheFile = path.resolve('public/models/highland_cow_support.json');
         } else if (lowerName.includes('eule') || lowerName.includes('cú') || lowerName.includes('owl')) {
           preCacheFile = path.resolve('public/models/eule_support.json');
@@ -1517,9 +1531,11 @@ export function slicerBridgePlugin(): Plugin {
         if (preCacheFile && fs.existsSync(preCacheFile)) {
           try {
             const data = JSON.parse(fs.readFileSync(preCacheFile, 'utf8'));
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ status: 'ok', supportData: data }));
-            return;
+            if (data && data.segments && data.segments.length > 0) {
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ status: 'ok', supportData: data }));
+              return;
+            }
           } catch (_) {}
         }
 
@@ -1534,10 +1550,12 @@ export function slicerBridgePlugin(): Plugin {
 
           if (fs.existsSync(perModelCachePath)) {
             try {
-              const content = fs.readFileSync(perModelCachePath, 'utf8');
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ status: 'ok', supportData: JSON.parse(content) }));
-              return;
+              const parsed = JSON.parse(fs.readFileSync(perModelCachePath, 'utf8'));
+              if (parsed && parsed.segments && parsed.segments.length > 0) {
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ status: 'ok', supportData: parsed }));
+                return;
+              }
             } catch (_) {}
           }
 
@@ -1546,34 +1564,22 @@ export function slicerBridgePlugin(): Plugin {
           if (gcodePath && fs.existsSync(gcodePath)) {
             const gcodeText = fs.readFileSync(gcodePath, 'utf8');
             const supportData = extractSupportFromGCode(gcodeText, path.basename(modelFilePath), modelFilePath);
-            fs.writeFileSync(perModelCachePath, JSON.stringify(supportData));
+            if (supportData.segments.length > 0) {
+              fs.writeFileSync(perModelCachePath, JSON.stringify(supportData));
+            }
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ status: 'ok', supportData }));
             return;
           }
 
-          // Fallback support kỹ thuật
-          try {
-            const techSupport = generateTechnicalTreeSupport(modelFilePath, path.basename(modelFilePath));
-            if (techSupport && techSupport.segments && techSupport.segments.length > 0) {
-              fs.writeFileSync(perModelCachePath, JSON.stringify(techSupport));
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ status: 'ok', supportData: techSupport }));
-              return;
-            }
-          } catch (err) {
-            console.warn('[Technical Tree Support] Lỗi sinh support kỹ thuật:', err);
-          }
-
           const emptySupport: INativeSupportData = {
             model: path.basename(modelFilePath),
             modelPath: modelFilePath,
-            engine: 'bambu_studio',
+            engine: 'bambu_studio_conformal',
             totalMoves: 0,
             totalSegments: 0,
             segments: [],
           };
-          fs.writeFileSync(perModelCachePath, JSON.stringify(emptySupport));
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ status: 'ok', supportData: emptySupport }));
           return;
@@ -1600,8 +1606,11 @@ export function slicerBridgePlugin(): Plugin {
 
         // 1. Kiểm tra pre-cache mẫu
         const lowerName = (modelNameParam + ' ' + (modelFilePath || '')).toLowerCase();
+        const tpHashMatch = /upload_([a-f0-9]{12})/i.exec(lowerName);
         let preCacheToolpath = '';
-        if (lowerName.includes('cow') || lowerName.includes('bò') || lowerName.includes('highland') || lowerName.includes('ogen')) {
+        if (tpHashMatch && fs.existsSync(path.join(tempDir, `toolpaths_${tpHashMatch[1]}.json`))) {
+          preCacheToolpath = path.join(tempDir, `toolpaths_${tpHashMatch[1]}.json`);
+        } else if (lowerName.includes('cow') || lowerName.includes('bò') || lowerName.includes('highland') || lowerName.includes('ogen')) {
           preCacheToolpath = path.resolve('public/models/highland_cow_toolpaths.json');
         } else if (lowerName.includes('eule') || lowerName.includes('cú') || lowerName.includes('owl')) {
           preCacheToolpath = path.resolve('public/models/eule_toolpaths.json');
