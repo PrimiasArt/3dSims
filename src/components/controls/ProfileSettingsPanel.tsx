@@ -1,20 +1,18 @@
 import React, { useState } from 'react';
 import {
-  Sliders,
-  Layers,
-  Thermometer,
-  Gauge,
-  Palette,
-  Shield,
-  Zap,
-  ChevronLeft,
-  ChevronRight,
-  Wind,
-  Sparkles,
-  Key,
-  Droplets,
-  Box,
-} from 'lucide-react';
+  IconSliders,
+  IconCube,
+  IconSupport,
+  IconVelocity,
+  IconThermal,
+  IconFlow,
+  IconLayers,
+  IconTerminal,
+  IconAngle,
+  IconKeyMinimal,
+  IconChevronLeft,
+  IconChevronRight,
+} from '@/components/icons/MinimalIcons';
 import { ISimulationProfile, MaterialType, InfillPattern, SupportType } from '@/types/simulator';
 import { PRESET_PROFILES, MATERIAL_PALETTE } from '@/services/presetProfiles';
 
@@ -45,46 +43,46 @@ export function ProfileSettingsPanel({
 
   const materials: MaterialType[] = ['PLA', 'PETG', 'ABS', 'TPU', 'PLA-CF'];
   const infillTypes: { id: InfillPattern; label: string }[] = [
-    { id: 'gyroid', label: 'Gyroid (Chịu lực 3D đẳng hướng)' },
-    { id: 'grid', label: 'Grid (Lưới vuông tốc độ cao)' },
-    { id: 'honeycomb', label: 'Honeycomb (Tổ ong lục giác)' },
+    { id: 'gyroid', label: 'Gyroid (Đẳng hướng 3D)' },
+    { id: 'grid', label: 'Grid (Lưới trực giao)' },
+    { id: 'honeycomb', label: 'Honeycomb (Cấu trúc tổ ong)' },
     { id: 'triangles', label: 'Triangles (Khung giàn tam giác)' },
-    { id: 'concentric', label: 'Concentric (Đồng tâm đàn hồi)' },
+    { id: 'concentric', label: 'Concentric (Biên dạng đồng tâm)' },
   ];
   const supportModes: { id: SupportType; label: string }[] = [
     { id: 'none', label: 'Tắt' },
-    { id: 'tree', label: 'Tree (Cành Cây)' },
+    { id: 'tree', label: 'Tree (Nhánh)' },
     { id: 'normal', label: 'Normal (Trụ)' },
   ];
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'basic', label: 'Cơ Bản', icon: <Sliders className="w-3 h-3" /> },
-    { id: 'quality', label: 'Vách/Vỏ', icon: <Box className="w-3 h-3" /> },
-    { id: 'support', label: 'Support', icon: <Shield className="w-3 h-3" /> },
-    { id: 'speed', label: 'Tốc Độ', icon: <Gauge className="w-3 h-3" /> },
-    { id: 'thermals', label: 'Nhiệt Độ', icon: <Thermometer className="w-3 h-3" /> },
-    { id: 'extrusion', label: 'Đùn Nhựa', icon: <Droplets className="w-3 h-3" /> },
+    { id: 'basic', label: 'Cơ Bản', icon: <IconSliders size={12} /> },
+    { id: 'quality', label: 'Vách/Vỏ', icon: <IconCube size={12} /> },
+    { id: 'support', label: 'Support', icon: <IconSupport size={12} /> },
+    { id: 'speed', label: 'Tốc Độ', icon: <IconVelocity size={12} /> },
+    { id: 'thermals', label: 'Nhiệt Độ', icon: <IconThermal size={12} /> },
+    { id: 'extrusion', label: 'Đùn Nhựa', icon: <IconFlow size={12} /> },
   ];
 
   return (
     <aside
       className={`fixed top-16 left-3 z-20 transition-all duration-300 ${
-        isOpen ? 'w-80 md:w-[360px]' : 'w-11'
+        isOpen ? 'w-80 md:w-[356px]' : 'w-11'
       }`}
     >
-      <div className="rounded-2xl glass-panel border border-white/15 shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-148px)]">
+      <div className="rounded-2xl glass-panel overflow-hidden flex flex-col max-h-[calc(100vh-148px)]">
         {/* Header / Collapse Toggle */}
-        <div className="px-3.5 py-2.5 border-b border-white/10 flex items-center justify-between bg-white/[0.03]">
+        <div className="px-3.5 py-2.5 border-b studio-border flex items-center justify-between bg-[var(--bg-subtle)]">
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-7 h-7 rounded-lg bg-teal-500/15 border border-teal-400/30 flex items-center justify-center text-teal-300 shrink-0">
-              <Sliders className="w-3.5 h-3.5" />
+            <div className="w-7 h-7 rounded-lg studio-gold-badge flex items-center justify-center shrink-0">
+              <IconSliders size={13} />
             </div>
             {isOpen && (
               <div className="leading-tight">
-                <h3 className="text-[11px] font-extrabold text-white uppercase tracking-wider">
+                <h3 className="text-[11px] font-semibold studio-text-primary uppercase tracking-wider">
                   Thông Số Cắt Lớp (Process)
                 </h3>
-                <p className="text-[10px] text-slate-400 font-mono">
+                <p className="text-[10px] studio-text-secondary font-mono">
                   {profile.material} • {profile.layerHeight}mm • {profile.infillDensity}%
                 </p>
               </div>
@@ -93,26 +91,26 @@ export function ProfileSettingsPanel({
 
           <button
             onClick={onToggleOpen}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition-all cursor-pointer shrink-0"
+            className="p-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary transition-all cursor-pointer shrink-0"
             title={isOpen ? 'Thu gọn bảng thông số' : 'Mở bảng thông số cắt lớp'}
           >
-            {isOpen ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            {isOpen ? <IconChevronLeft size={13} /> : <IconChevronRight size={13} />}
           </button>
         </div>
 
-        {/* 6-Tab Navigation Bar (Fixed 6-column alignment - No wrapping bug) */}
+        {/* 6-Tab Minimalist Segmented Navigation */}
         {isOpen && (
-          <div className="grid grid-cols-6 border-b border-white/10 bg-black/40 p-1 gap-0.5">
+          <div className="grid grid-cols-6 border-b studio-border bg-[var(--bg-subtle)] p-1 gap-0.5">
             {tabs.map((t) => {
               const isActive = activeTab === t.id;
               return (
                 <button
                   key={t.id}
                   onClick={() => setActiveTab(t.id)}
-                  className={`flex flex-col items-center justify-center gap-1 py-1.5 px-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  className={`flex flex-col items-center justify-center gap-1 py-1.5 px-0.5 rounded-lg text-[10px] transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-teal-400/15 text-teal-300 border border-teal-400/35 shadow-xs'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                      ? 'studio-pill-active'
+                      : 'studio-pill-inactive font-medium'
                   }`}
                 >
                   {t.icon}
@@ -125,41 +123,35 @@ export function ProfileSettingsPanel({
 
         {/* Scrollable Inspector Body */}
         {isOpen && (
-          <div className="p-3.5 space-y-3.5 overflow-y-auto text-xs">
+          <div className="p-3.5 space-y-3 overflow-y-auto text-xs">
             {/* ================= TAB 1: CƠ BẢN ================= */}
             {activeTab === 'basic' && (
               <>
                 {/* 1. Preset Selector */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Cấu hình mẫu (System Preset)</span>
-                    </span>
-                    <span className="text-[9px] font-mono text-teal-400 uppercase">0.4mm Nozzle</span>
+                  <label className="text-[11px] font-semibold studio-text-primary flex items-center justify-between">
+                    <span>Cấu hình mẫu (System Preset)</span>
+                    <span className="text-[9px] font-mono studio-text-gold uppercase">0.4mm Nozzle</span>
                   </label>
                   <select
                     value={profile.id}
                     onChange={(e) => onApplyPreset(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl glass-input text-xs font-semibold text-teal-300 cursor-pointer"
+                    className="w-full px-3 py-2 rounded-xl glass-input text-xs font-medium cursor-pointer"
                   >
                     {PRESET_PROFILES.map((p) => (
-                      <option key={p.id} value={p.id} className="bg-slate-900 text-white">
+                      <option key={p.id} value={p.id} className="bg-neutral-900 text-neutral-100">
                         {p.name}
                       </option>
                     ))}
                   </select>
-                  <p className="text-[10px] text-slate-400 leading-relaxed px-0.5">{profile.description}</p>
+                  <p className="text-[10px] studio-text-secondary leading-relaxed px-0.5">{profile.description}</p>
                 </div>
 
                 {/* 2. Filament Material & Color Swatch */}
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2.5">
-                  <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Palette className="w-3.5 h-3.5 text-teal-400" />
-                      <span>Nhựa In (Filament)</span>
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-400">
+                <div className="p-3 rounded-xl studio-card space-y-2.5">
+                  <label className="text-[11px] font-semibold studio-text-primary flex items-center justify-between">
+                    <span>Nhựa In (Filament)</span>
+                    <span className="text-[10px] font-mono studio-text-secondary">
                       {profile.nozzleTemp}°C / {profile.bedTemp}°C
                     </span>
                   </label>
@@ -169,10 +161,10 @@ export function ProfileSettingsPanel({
                       <button
                         key={m}
                         onClick={() => onChangeProfile({ material: m })}
-                        className={`py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        className={`py-1.5 px-1 rounded-lg text-[11px] transition-all cursor-pointer ${
                           profile.material === m
-                            ? 'bg-teal-400 text-slate-950 font-extrabold shadow-xs'
-                            : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-white/5'
+                            ? 'studio-pill-active'
+                            : 'studio-card studio-pill-inactive font-medium'
                         }`}
                       >
                         {m}
@@ -181,17 +173,17 @@ export function ProfileSettingsPanel({
                   </div>
 
                   {/* Color Swatches */}
-                  <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                    <span className="text-[10px] text-slate-400 font-medium">Màu cuộn nhựa:</span>
+                  <div className="flex items-center justify-between pt-1.5 border-t studio-border">
+                    <span className="text-[10px] studio-text-secondary">Màu sắc phôi:</span>
                     <div className="flex items-center gap-1.5">
                       {(MATERIAL_PALETTE[profile.material] || MATERIAL_PALETTE.PLA).map((hex) => (
                         <button
                           key={hex}
                           onClick={() => onChangeProfile({ materialColor: hex })}
-                          className={`w-5 h-5 rounded-full transition-all cursor-pointer border ${
+                          className={`w-4.5 h-4.5 rounded-full transition-all cursor-pointer border ${
                             profile.materialColor === hex
-                              ? 'scale-115 border-white ring-2 ring-teal-400/60'
-                              : 'border-white/20 hover:scale-110 opacity-75'
+                              ? 'scale-115 border-[var(--text-primary)] ring-2 ring-[var(--accent-gold)]'
+                              : 'border-black/20 hover:scale-110 opacity-75'
                           }`}
                           style={{ backgroundColor: hex }}
                           title={hex}
@@ -202,13 +194,13 @@ export function ProfileSettingsPanel({
                 </div>
 
                 {/* 3. Layer Height Slider */}
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 flex items-center gap-1.5 font-bold">
-                      <Layers className="w-3.5 h-3.5 text-teal-400" />
-                      Độ dày lớp cắt (Layer Height)
+                    <span className="studio-text-primary flex items-center gap-1.5 font-semibold">
+                      <IconLayers size={12} className="studio-text-gold" />
+                      <span>Độ dày lớp cắt (Layer Height)</span>
                     </span>
-                    <span className="font-mono font-bold text-teal-300 bg-teal-500/15 px-2 py-0.5 rounded border border-teal-500/25">
+                    <span className="font-mono font-semibold text-[11px] px-2 py-0.5 rounded studio-gold-badge">
                       {profile.layerHeight.toFixed(2)} mm
                     </span>
                   </div>
@@ -219,20 +211,20 @@ export function ProfileSettingsPanel({
                     step="0.04"
                     value={profile.layerHeight}
                     onChange={(e) => onChangeProfile({ layerHeight: Number(e.target.value) })}
-                    className="w-full accent-teal-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
-                  <div className="flex justify-between text-[9px] text-slate-500 font-mono">
-                    <span>0.08mm (Siêu mịn)</span>
-                    <span>0.20mm (Chuẩn)</span>
+                  <div className="flex justify-between text-[9px] studio-text-muted font-mono">
+                    <span>0.08mm (Fine)</span>
+                    <span>0.20mm (Standard)</span>
                     <span>0.32mm (Draft)</span>
                   </div>
                 </div>
 
                 {/* 4. Sparse Infill Density & Pattern */}
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2.5">
+                <div className="p-3 rounded-xl studio-card space-y-2.5">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 font-bold">Mật độ ruột (Sparse Infill)</span>
-                    <span className="font-mono font-bold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/25">
+                    <span className="studio-text-primary font-semibold">Mật độ ruột (Sparse Infill)</span>
+                    <span className="font-mono font-semibold text-[11px] px-2 py-0.5 rounded studio-gold-badge">
                       {profile.infillDensity}%
                     </span>
                   </div>
@@ -243,17 +235,17 @@ export function ProfileSettingsPanel({
                     step="5"
                     value={profile.infillDensity}
                     onChange={(e) => onChangeProfile({ infillDensity: Number(e.target.value) })}
-                    className="w-full accent-amber-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
                   <div className="space-y-1 pt-0.5">
-                    <label className="text-[10px] text-slate-400">Hoa văn chịu lực bên trong:</label>
+                    <label className="text-[10px] studio-text-secondary">Cấu trúc chịu lực bên trong:</label>
                     <select
                       value={profile.infillType}
                       onChange={(e) => onChangeProfile({ infillType: e.target.value as InfillPattern })}
-                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-medium text-white cursor-pointer"
+                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-medium cursor-pointer"
                     >
                       {infillTypes.map((t) => (
-                        <option key={t.id} value={t.id} className="bg-slate-900 text-white">
+                        <option key={t.id} value={t.id} className="bg-neutral-900 text-neutral-100">
                           {t.label}
                         </option>
                       ))}
@@ -262,17 +254,17 @@ export function ProfileSettingsPanel({
                 </div>
 
                 {/* 5. Quick Support & Brim */}
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2.5">
+                <div className="p-3 rounded-xl studio-card space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[11px] font-semibold studio-text-primary flex items-center gap-1.5">
+                      <IconSupport size={12} className="studio-text-gold" />
                       <span>Cấu trúc đỡ (Support)</span>
                     </span>
                     <button
                       onClick={() => setActiveTab('support')}
-                      className="text-[10px] text-teal-400 hover:underline cursor-pointer font-semibold"
+                      className="text-[10px] studio-text-gold hover:underline cursor-pointer font-medium"
                     >
-                      Chi tiết &gt;
+                      Chi tiết →
                     </button>
                   </div>
 
@@ -281,10 +273,10 @@ export function ProfileSettingsPanel({
                       <button
                         key={sm.id}
                         onClick={() => onChangeProfile({ supportMode: sm.id })}
-                        className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        className={`py-1.5 px-2 rounded-lg text-[11px] transition-all cursor-pointer ${
                           profile.supportMode === sm.id
-                            ? 'bg-emerald-400 text-slate-950 font-extrabold shadow-xs'
-                            : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-white/5'
+                            ? 'studio-pill-active'
+                            : 'studio-card studio-pill-inactive font-medium'
                         }`}
                       >
                         {sm.label}
@@ -292,18 +284,18 @@ export function ProfileSettingsPanel({
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                  <div className="flex items-center justify-between pt-2 border-t studio-border">
                     <div>
-                      <div className="text-[11px] font-semibold text-slate-200">
+                      <div className="text-[11px] font-medium studio-text-primary">
                         Vành Bám Bàn (Brim {profile.brimWidthMm || 5}mm)
                       </div>
-                      <div className="text-[10px] text-slate-400">Chống cong vênh mép đáy</div>
+                      <div className="text-[10px] studio-text-secondary">Tăng diện tích tiếp xúc đáy</div>
                     </div>
                     <input
                       type="checkbox"
                       checked={profile.brimEnabled}
                       onChange={(e) => onChangeProfile({ brimEnabled: e.target.checked })}
-                      className="w-4 h-4 accent-teal-400 rounded cursor-pointer"
+                      className="w-4 h-4 accent-[var(--accent-gold)] rounded cursor-pointer"
                     />
                   </div>
                 </div>
@@ -313,10 +305,10 @@ export function ProfileSettingsPanel({
             {/* ================= TAB 2: VÁCH & VỎ ================= */}
             {activeTab === 'quality' && (
               <div className="space-y-3">
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 font-bold">Số vòng tường (Wall Loops)</span>
-                    <span className="font-mono font-bold text-teal-300">{profile.wallLoops} vòng</span>
+                    <span className="studio-text-primary font-semibold">Số vòng tường (Wall Loops)</span>
+                    <span className="font-mono font-semibold studio-text-gold">{profile.wallLoops} vòng</span>
                   </div>
                   <input
                     type="range"
@@ -325,17 +317,17 @@ export function ProfileSettingsPanel({
                     step="1"
                     value={profile.wallLoops}
                     onChange={(e) => onChangeProfile({ wallLoops: Number(e.target.value) })}
-                    className="w-full accent-teal-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
-                  <div className="text-[10px] text-slate-400">
-                    2 vòng cho mô hình trưng bày, 4 vòng cho chi tiết chịu tải cơ khí.
+                  <div className="text-[10px] studio-text-secondary">
+                    2 vòng cho mô hình tiêu chuẩn, 4 vòng cho chi tiết cơ khí.
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 font-bold">Độ dày lớp đầu tiên (First Layer)</span>
-                    <span className="font-mono font-bold text-teal-300">{profile.firstLayerHeight || 0.2} mm</span>
+                    <span className="studio-text-primary font-semibold">Độ dày lớp đầu tiên</span>
+                    <span className="font-mono font-semibold studio-text-gold">{profile.firstLayerHeight || 0.2} mm</span>
                   </div>
                   <input
                     type="range"
@@ -344,45 +336,45 @@ export function ProfileSettingsPanel({
                     step="0.02"
                     value={profile.firstLayerHeight || 0.2}
                     onChange={(e) => onChangeProfile({ firstLayerHeight: Number(e.target.value) })}
-                    className="w-full accent-teal-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400">Lớp Nóc (Top Shells)</span>
+                  <div className="p-2.5 rounded-xl studio-card space-y-1">
+                    <span className="text-[10px] studio-text-secondary">Lớp Nóc (Top Shells)</span>
                     <input
                       type="number"
                       min="2"
                       max="8"
                       value={profile.topShellLayers || 4}
                       onChange={(e) => onChangeProfile({ topShellLayers: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-bold text-teal-300"
+                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-semibold"
                     />
                   </div>
-                  <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400">Lớp Đáy (Bottom Shells)</span>
+                  <div className="p-2.5 rounded-xl studio-card space-y-1">
+                    <span className="text-[10px] studio-text-secondary">Lớp Đáy (Bottom Shells)</span>
                     <input
                       type="number"
                       min="2"
                       max="8"
                       value={profile.bottomShellLayers || 3}
                       onChange={(e) => onChangeProfile({ bottomShellLayers: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-bold text-teal-300"
+                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-semibold"
                     />
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-300">Vị trí mối nối Z-Seam:</label>
+                <div className="p-3 rounded-xl studio-card space-y-1.5">
+                  <label className="text-[11px] font-semibold studio-text-primary">Vị trí mối nối Z-Seam:</label>
                   <select
                     value={profile.seamPosition || 'aligned'}
                     onChange={(e) => onChangeProfile({ seamPosition: e.target.value as any })}
-                    className="w-full px-3 py-1.5 rounded-lg glass-input text-xs font-semibold text-white cursor-pointer"
+                    className="w-full px-3 py-1.5 rounded-lg glass-input text-xs font-medium cursor-pointer"
                   >
-                    <option value="aligned" className="bg-slate-900">Aligned (Giấu dọc cạnh sắc)</option>
-                    <option value="nearest" className="bg-slate-900">Nearest (Gần nhất - tối ưu tốc độ)</option>
-                    <option value="random" className="bg-slate-900">Random (Phân tán ngẫu nhiên)</option>
+                    <option value="aligned" className="bg-neutral-900">Aligned (Giấu dọc cạnh sắc)</option>
+                    <option value="nearest" className="bg-neutral-900">Nearest (Gần nhất - tối ưu tốc độ)</option>
+                    <option value="random" className="bg-neutral-900">Random (Phân tán ngẫu nhiên)</option>
                   </select>
                 </div>
               </div>
@@ -392,56 +384,53 @@ export function ProfileSettingsPanel({
             {activeTab === 'support' && (
               <div className="space-y-3">
                 {/* Support Engine Architecture Card */}
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 space-y-2">
+                <div className="p-3 rounded-xl glass-panel-accent space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-emerald-300 flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5" />
+                    <span className="text-[11px] font-semibold studio-text-primary flex items-center gap-1.5">
+                      <IconSupport size={13} className="studio-text-gold" />
                       <span>Bộ Giải Tree Support Kép</span>
                     </span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200">
-                      Conformal + CLI
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded studio-gold-badge">
+                      CONFORMAL + CLI
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-300 leading-relaxed">
-                    Hệ thống tự động nạp G-code Tree Support từ <strong>Bambu Studio CLI</strong> hoặc dựng mặt tiếp xúc <strong>Triangle-Conformal</strong> ôm khít 100% biên dạng mô hình.
+                  <p className="text-[10px] studio-text-secondary leading-relaxed">
+                    Tự động nạp G-code từ <strong>Bambu Studio CLI</strong> hoặc dựng mặt tiếp xúc <strong>Triangle-Conformal</strong> ôm sát 100% biên dạng vỏ.
                   </p>
                   <div className="grid grid-cols-2 gap-1.5 pt-1">
                     {onOpenLocalSlicerModal && (
                       <button
                         onClick={onOpenLocalSlicerModal}
-                        className="py-1.5 px-2 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1"
+                        className="py-1.5 px-2 rounded-lg studio-cta-primary font-semibold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        <Zap className="w-3 h-3" />
+                        <IconTerminal size={11} />
                         <span>Chạy Bambu CLI</span>
                       </button>
                     )}
                     {onOpenSupportAIModal && (
                       <button
                         onClick={onOpenSupportAIModal}
-                        className="py-1.5 px-2 rounded-lg bg-white/10 hover:bg-white/15 text-teal-300 border border-teal-400/30 font-bold text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1"
+                        className="py-1.5 px-2 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary font-medium text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        <Sparkles className="w-3 h-3" />
-                        <span>AI Tối Ưu Góc</span>
+                        <IconAngle size={11} className="studio-text-gold" />
+                        <span>Tối Ưu Góc Đặt</span>
                       </button>
                     )}
                   </div>
                 </div>
 
                 {/* 1. Support Mode Selection */}
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
-                  <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Chế độ Support:</span>
-                  </label>
+                <div className="p-3 rounded-xl studio-card space-y-2">
+                  <label className="text-[11px] font-semibold studio-text-primary">Chế độ Support:</label>
                   <div className="grid grid-cols-3 gap-1.5">
                     {(['none', 'tree', 'normal'] as const).map((mode) => (
                       <button
                         key={mode}
                         onClick={() => onChangeProfile({ supportMode: mode })}
-                        className={`py-1.5 px-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer text-center ${
+                        className={`py-1.5 px-1 rounded-lg text-[11px] transition-all cursor-pointer text-center ${
                           profile.supportMode === mode
-                            ? 'bg-emerald-400 text-slate-950 font-extrabold shadow-xs'
-                            : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-white/5'
+                            ? 'studio-pill-active'
+                            : 'studio-card studio-pill-inactive font-medium'
                         }`}
                       >
                         {mode === 'none' ? 'Tắt' : mode === 'tree' ? 'Tree (Auto)' : 'Normal Snug'}
@@ -452,11 +441,8 @@ export function ProfileSettingsPanel({
 
                 {/* 2. Tree Support Style */}
                 {profile.supportMode === 'tree' && (
-                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
-                    <label className="text-[11px] font-bold text-teal-300 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Kiểu nhánh Tree Support:</span>
-                    </label>
+                  <div className="p-3 rounded-xl studio-card space-y-2">
+                    <label className="text-[11px] font-semibold studio-text-primary">Kiểu nhánh Tree Support:</label>
                     <div className="grid grid-cols-2 gap-1.5">
                       {[
                         { id: 'organic', name: 'Tree Organic', desc: 'Mượt, ôm sát vách' },
@@ -469,12 +455,12 @@ export function ProfileSettingsPanel({
                           onClick={() => onChangeProfile({ treeStyle: st.id as any })}
                           className={`p-2 rounded-lg text-left border transition-all cursor-pointer ${
                             (profile.treeStyle || 'organic') === st.id
-                              ? 'bg-teal-500/20 border-teal-400/50 text-white font-bold'
-                              : 'bg-white/5 border-white/5 text-slate-400 hover:text-white'
+                              ? 'studio-gold-badge font-semibold'
+                              : 'studio-card studio-pill-inactive'
                           }`}
                         >
-                          <div className="text-[11px] font-bold text-teal-300">{st.name}</div>
-                          <div className="text-[9px] text-slate-400">{st.desc}</div>
+                          <div className="text-[11px] font-semibold studio-text-primary">{st.name}</div>
+                          <div className="text-[9px] studio-text-secondary">{st.desc}</div>
                         </button>
                       ))}
                     </div>
@@ -483,11 +469,11 @@ export function ProfileSettingsPanel({
 
                 {/* 3. Overhang Angle & Z-Distance */}
                 {profile.supportMode !== 'none' && (
-                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-3">
+                  <div className="p-3 rounded-xl studio-card space-y-3">
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-300 font-bold">Ngưỡng góc đổ (Threshold Angle)</span>
-                        <span className="font-mono font-bold text-amber-300">
+                        <span className="studio-text-primary font-semibold">Ngưỡng góc đổ (Threshold)</span>
+                        <span className="font-mono font-semibold studio-text-gold">
                           {profile.supportAngleThreshold || 45}°
                         </span>
                       </div>
@@ -498,14 +484,14 @@ export function ProfileSettingsPanel({
                         step="1"
                         value={profile.supportAngleThreshold || 45}
                         onChange={(e) => onChangeProfile({ supportAngleThreshold: Number(e.target.value) })}
-                        className="w-full accent-amber-400 cursor-pointer"
+                        className="w-full cursor-pointer"
                       />
                     </div>
 
-                    <div className="space-y-1.5 pt-2 border-t border-white/5">
+                    <div className="space-y-1.5 pt-2 border-t studio-border">
                       <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-300 font-bold">Khe hở bóc tách (Top Z Distance)</span>
-                        <span className="font-mono font-bold text-teal-300">
+                        <span className="studio-text-primary font-semibold">Khe hở bóc tách (Top Z)</span>
+                        <span className="font-mono font-semibold studio-text-gold">
                           {(profile.supportTopZDistance || 0.2).toFixed(2)} mm
                         </span>
                       </div>
@@ -516,51 +502,22 @@ export function ProfileSettingsPanel({
                         step="0.02"
                         value={profile.supportTopZDistance || 0.2}
                         onChange={(e) => onChangeProfile({ supportTopZDistance: Number(e.target.value) })}
-                        className="w-full accent-teal-400 cursor-pointer"
+                        className="w-full cursor-pointer"
                       />
                     </div>
-
-                    {profile.supportMode === 'tree' && (
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
-                        <div className="space-y-1">
-                          <span className="text-[10px] text-slate-400">Đường kính nhánh (mm)</span>
-                          <input
-                            type="number"
-                            step="0.2"
-                            min="1.5"
-                            max="5.0"
-                            value={profile.supportBranchDiameter || 2.8}
-                            onChange={(e) => onChangeProfile({ supportBranchDiameter: Number(e.target.value) })}
-                            className="w-full px-2.5 py-1 rounded-lg glass-input text-xs font-mono font-bold text-teal-300"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[10px] text-slate-400">Góc vươn nhánh (°)</span>
-                          <input
-                            type="number"
-                            step="1"
-                            min="25"
-                            max="60"
-                            value={profile.supportBranchAngle || 42}
-                            onChange={(e) => onChangeProfile({ supportBranchAngle: Number(e.target.value) })}
-                            className="w-full px-2.5 py-1 rounded-lg glass-input text-xs font-mono font-bold text-teal-300"
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 
                 {onOpenGeminiKeyModal && (
                   <button
                     onClick={onOpenGeminiKeyModal}
-                    className="w-full py-2 px-3 rounded-xl bg-white/[0.03] hover:bg-white/10 border border-white/10 text-left transition-all cursor-pointer flex items-center justify-between text-xs"
+                    className="w-full py-2 px-3 rounded-xl studio-card hover:bg-[var(--bg-hover)] text-left transition-all cursor-pointer flex items-center justify-between text-xs"
                   >
-                    <div className="flex items-center gap-2 text-slate-300">
-                      <Key className="w-3.5 h-3.5 text-amber-400" />
+                    <div className="flex items-center gap-2 studio-text-secondary">
+                      <IconKeyMinimal size={12} className="studio-text-gold" />
                       <span>Cấu hình Gemini API Key</span>
                     </div>
-                    <span className="text-[10px] text-teal-400 font-bold">Mở &gt;</span>
+                    <span className="text-[10px] studio-text-gold font-semibold">Mở →</span>
                   </button>
                 )}
               </div>
@@ -569,13 +526,10 @@ export function ProfileSettingsPanel({
             {/* ================= TAB 4: TỐC ĐỘ ================= */}
             {activeTab === 'speed' && (
               <div className="space-y-3">
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 flex items-center gap-1.5 font-bold">
-                      <Gauge className="w-3.5 h-3.5 text-teal-400" />
-                      Tốc độ in chuẩn (Print Speed)
-                    </span>
-                    <span className="font-mono font-bold text-teal-300">{profile.printSpeed} mm/s</span>
+                    <span className="studio-text-primary font-semibold">Tốc độ in chuẩn (Print Speed)</span>
+                    <span className="font-mono font-semibold studio-text-gold">{profile.printSpeed} mm/s</span>
                   </div>
                   <input
                     type="range"
@@ -584,40 +538,35 @@ export function ProfileSettingsPanel({
                     step="10"
                     value={profile.printSpeed}
                     onChange={(e) => onChangeProfile({ printSpeed: Number(e.target.value) })}
-                    className="w-full accent-teal-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
-                  <div className="flex justify-between text-[9px] text-slate-500 font-mono">
-                    <span>50 mm/s (Silent)</span>
-                    <span>250 mm/s (Standard)</span>
-                    <span>500 mm/s (Ludicrous)</span>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400">Tường ngoài (mm/s)</span>
+                  <div className="p-2.5 rounded-xl studio-card space-y-1">
+                    <span className="text-[10px] studio-text-secondary">Tường ngoài (mm/s)</span>
                     <input
                       type="number"
                       value={profile.outerWallSpeed || Math.round(profile.printSpeed * 0.6)}
                       onChange={(e) => onChangeProfile({ outerWallSpeed: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-bold text-teal-300"
+                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-semibold"
                     />
                   </div>
-                  <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400">Ruột Infill (mm/s)</span>
+                  <div className="p-2.5 rounded-xl studio-card space-y-1">
+                    <span className="text-[10px] studio-text-secondary">Ruột Infill (mm/s)</span>
                     <input
                       type="number"
                       value={profile.infillSpeed || Math.round(profile.printSpeed * 1.1)}
                       onChange={(e) => onChangeProfile({ infillSpeed: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-bold text-teal-300"
+                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-semibold"
                     />
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 font-bold">Chạy không tải (Travel Speed)</span>
-                    <span className="font-mono font-bold text-teal-300">{profile.travelSpeed || 500} mm/s</span>
+                    <span className="studio-text-primary font-semibold">Chạy không tải (Travel Speed)</span>
+                    <span className="font-mono font-semibold studio-text-gold">{profile.travelSpeed || 500} mm/s</span>
                   </div>
                   <input
                     type="range"
@@ -626,7 +575,7 @@ export function ProfileSettingsPanel({
                     step="50"
                     value={profile.travelSpeed || 500}
                     onChange={(e) => onChangeProfile({ travelSpeed: Number(e.target.value) })}
-                    className="w-full accent-teal-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
                 </div>
               </div>
@@ -635,13 +584,10 @@ export function ProfileSettingsPanel({
             {/* ================= TAB 5: NHIỆT ĐỘ & LÀM MÁT ================= */}
             {activeTab === 'thermals' && (
               <div className="space-y-3">
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 flex items-center gap-1.5 font-bold">
-                      <Thermometer className="w-3.5 h-3.5 text-rose-400" />
-                      Nhiệt độ Đầu phun (Nozzle)
-                    </span>
-                    <span className="font-mono font-bold text-rose-300">{profile.nozzleTemp}°C</span>
+                    <span className="studio-text-primary font-semibold">Nhiệt độ Đầu phun (Nozzle)</span>
+                    <span className="font-mono font-semibold studio-text-gold">{profile.nozzleTemp}°C</span>
                   </div>
                   <input
                     type="range"
@@ -650,17 +596,14 @@ export function ProfileSettingsPanel({
                     step="5"
                     value={profile.nozzleTemp}
                     onChange={(e) => onChangeProfile({ nozzleTemp: Number(e.target.value) })}
-                    className="w-full accent-rose-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 flex items-center gap-1.5 font-bold">
-                      <Thermometer className="w-3.5 h-3.5 text-amber-400" />
-                      Nhiệt độ Bàn nhiệt (PEI Bed)
-                    </span>
-                    <span className="font-mono font-bold text-amber-300">{profile.bedTemp}°C</span>
+                    <span className="studio-text-primary font-semibold">Nhiệt độ Bàn nhiệt (PEI Bed)</span>
+                    <span className="font-mono font-semibold studio-text-gold">{profile.bedTemp}°C</span>
                   </div>
                   <input
                     type="range"
@@ -669,17 +612,14 @@ export function ProfileSettingsPanel({
                     step="5"
                     value={profile.bedTemp}
                     onChange={(e) => onChangeProfile({ bedTemp: Number(e.target.value) })}
-                    className="w-full accent-amber-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 flex items-center gap-1.5 font-bold">
-                      <Wind className="w-3.5 h-3.5 text-cyan-400" />
-                      Quạt làm mát vật in (Part Fan)
-                    </span>
-                    <span className="font-mono font-bold text-cyan-300">{profile.coolingFanSpeed}%</span>
+                    <span className="studio-text-primary font-semibold">Quạt làm mát (Part Fan)</span>
+                    <span className="font-mono font-semibold studio-text-gold">{profile.coolingFanSpeed}%</span>
                   </div>
                   <input
                     type="range"
@@ -688,7 +628,7 @@ export function ProfileSettingsPanel({
                     step="10"
                     value={profile.coolingFanSpeed}
                     onChange={(e) => onChangeProfile({ coolingFanSpeed: Number(e.target.value) })}
-                    className="w-full accent-cyan-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
                 </div>
               </div>
@@ -697,10 +637,10 @@ export function ProfileSettingsPanel({
             {/* ================= TAB 6: ĐÙN NHỰA & RETRACTION ================= */}
             {activeTab === 'extrusion' && (
               <div className="space-y-3">
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 font-bold">Hệ số dòng đùn (Flow Ratio)</span>
-                    <span className="font-mono font-bold text-teal-300">
+                    <span className="studio-text-primary font-semibold">Hệ số dòng đùn (Flow Ratio)</span>
+                    <span className="font-mono font-semibold studio-text-gold">
                       {(profile.flowRateMm3s || 0.98).toFixed(2)}
                     </span>
                   </div>
@@ -711,14 +651,14 @@ export function ProfileSettingsPanel({
                     step="0.01"
                     value={profile.flowRateMm3s || 0.98}
                     onChange={(e) => onChangeProfile({ flowRateMm3s: Number(e.target.value) })}
-                    className="w-full accent-teal-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 space-y-2">
+                <div className="p-3 rounded-xl studio-card space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-300 font-bold">Cự ly rút nhựa (Retraction Length)</span>
-                    <span className="font-mono font-bold text-teal-300">
+                    <span className="studio-text-primary font-semibold">Cự ly rút nhựa (Retraction)</span>
+                    <span className="font-mono font-semibold studio-text-gold">
                       {profile.retractionDistanceMm || 0.8} mm
                     </span>
                   </div>
@@ -729,28 +669,28 @@ export function ProfileSettingsPanel({
                     step="0.2"
                     value={profile.retractionDistanceMm || 0.8}
                     onChange={(e) => onChangeProfile({ retractionDistanceMm: Number(e.target.value) })}
-                    className="w-full accent-teal-400 cursor-pointer"
+                    className="w-full cursor-pointer"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400">Tốc độ rút (mm/s)</span>
+                  <div className="p-2.5 rounded-xl studio-card space-y-1">
+                    <span className="text-[10px] studio-text-secondary">Tốc độ rút (mm/s)</span>
                     <input
                       type="number"
                       value={profile.retractionSpeedMmS || 35}
                       onChange={(e) => onChangeProfile({ retractionSpeedMmS: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-bold text-teal-300"
+                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-semibold"
                     />
                   </div>
-                  <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400">Nhấc đầu Z-Hop (mm)</span>
+                  <div className="p-2.5 rounded-xl studio-card space-y-1">
+                    <span className="text-[10px] studio-text-secondary">Nhấc đầu Z-Hop (mm)</span>
                     <input
                       type="number"
                       step="0.1"
                       value={profile.zHopMm || 0.4}
                       onChange={(e) => onChangeProfile({ zHopMm: Number(e.target.value) })}
-                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-bold text-teal-300"
+                      className="w-full px-2.5 py-1.5 rounded-lg glass-input text-xs font-mono font-semibold"
                     />
                   </div>
                 </div>
