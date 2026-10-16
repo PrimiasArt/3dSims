@@ -98,6 +98,7 @@ export default function App() {
   const [isGeminiKeyModalOpen, setIsGeminiKeyModalOpen] = useState<boolean>(false);
   const [isLocalSlicerModalOpen, setIsLocalSlicerModalOpen] = useState<boolean>(false);
   const [isLiveInspectorOpen, setIsLiveInspectorOpen] = useState<boolean>(false);
+  const [isModelLibraryOpen, setIsModelLibraryOpen] = useState<boolean>(false);
   const [isAI3DModalOpen, setIsAI3DModalOpen] = useState<boolean>(false);
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(() => {
     return getSavedGeminiApiKey().length > 0;
