@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ISampleModel } from '@/types/simulator';
@@ -112,6 +113,58 @@ export function saveTripoApiKey(key: string): void {
 }
 
 /**
+ * Chuẩn hóa hình học GLB từ các AI Engine (Fal.ai Trellis / Tripo3D / Meshy):
+ * - Mặc định Fal.ai xuất mesh trong không gian đơn vị chuẩn hóa [-0.5, +0.5] (kích thước 1x1x1 đơn vị).
+ * - Hàm này tự động gộp toàn bộ mesh con, quy đổi từ hệ đơn vị 1x1x1 sang kích thước in FDM thực tế (80mm),
+ *   căn tâm X/Z và hạ mặt đáy tiếp xúc hoàn hảo với bàn in Y = 0.
+ */
+export function normalizeAIGeneratedGeometry(
+  rawGeometry: THREE.BufferGeometry,
+  targetMaxDimensionMm: number = 80
+): {
+  geometry: THREE.BufferGeometry;
+  dimensionsMm: [number, number, number];
+} {
+  const geom = rawGeometry.index ? rawGeometry.toNonIndexed() : rawGeometry.clone();
+  geom.computeBoundingBox();
+  const bbox = geom.boundingBox || new THREE.Box3();
+
+  const rawX = bbox.max.x - bbox.min.x;
+  const rawY = bbox.max.y - bbox.min.y;
+  const rawZ = bbox.max.z - bbox.min.z;
+  const maxRaw = Math.max(rawX, rawY, rawZ, 0.0001);
+
+  // Nếu mô hình nằm trong hệ tọa độ đơn vị chuẩn hóa (như 1x1x1 từ Fal.ai, maxDim < 10mm)
+  // hoặc quá lớn (> 220mm), tự động quy đổi về kích thước chuẩn in 3D (mặc định 80mm)
+  if (maxRaw < 10 || maxRaw > 220) {
+    const scaleFactor = targetMaxDimensionMm / maxRaw;
+    geom.scale(scaleFactor, scaleFactor, scaleFactor);
+  }
+
+  geom.center();
+  geom.computeBoundingBox();
+  const scaledBox = geom.boundingBox!;
+
+  // Đặt đáy mô hình tiếp xúc mặt bàn in (Y = 0)
+  if (scaledBox.min.y !== 0) {
+    geom.translate(0, -scaledBox.min.y, 0);
+  }
+
+  geom.computeVertexNormals();
+  geom.computeBoundingBox();
+  const finalBox = geom.boundingBox!;
+
+  const dimX = Math.max(1, Math.round(finalBox.max.x - finalBox.min.x));
+  const dimY = Math.max(1, Math.round(finalBox.max.z - finalBox.min.z)); // Slicer Y (chiều sâu)
+  const dimZ = Math.max(1, Math.round(finalBox.max.y - finalBox.min.y)); // Slicer Z (chiều cao)
+
+  return {
+    geometry: geom,
+    dimensionsMm: [dimX, dimY, dimZ],
+  };
+}
+
+/**
  * Sinh mô hình 3D bằng các AI 3D Foundation Models hàng đầu (Trellis / Tripo / Meshy)
  * Hoặc tức thì tải các mẫu AI tối ưu sẵn nếu không có API Key
  */
@@ -124,7 +177,6 @@ export async function generate3DModelFromAI(
   sliceResult: IUniversalSliceResult;
 }> {
   const falKey = params.falApiKey || getSavedFalApiKey();
-  const tripoKey = params.tripoApiKey || getSavedTripoApiKey();
 
   onProgress?.('Đang tối ưu hóa Prompt và cấu trúc hình học cho in FDM...', 20);
   await new Promise((r) => setTimeout(r, 400));
@@ -155,20 +207,34 @@ export async function generate3DModelFromAI(
         const data = await res.json();
         const glbUrl = data.model_mesh?.url || data.output?.glb?.url || data.glb?.url;
         if (glbUrl) {
-          onProgress?.('Đang tải và chuẩn hóa tệp 3D GLB từ Cloud...', 75);
+          onProgress?.('Đang tải và quy đổi tỷ lệ vật lý (1x1x1 Unit → 80mm)...', 75);
           const loader = new GLTFLoader();
           const gltf = await loader.loadAsync(glbUrl);
-          let extractedGeom: THREE.BufferGeometry | null = null;
+          gltf.scene.updateMatrixWorld(true);
+
+          const extractedGeoms: THREE.BufferGeometry[] = [];
           gltf.scene.traverse((child) => {
-            if (!extractedGeom && (child as THREE.Mesh).isMesh) {
-              extractedGeom = (child as THREE.Mesh).geometry.clone();
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              if (mesh.geometry) {
+                const cloned = mesh.geometry.clone();
+                cloned.applyMatrix4(mesh.matrixWorld);
+                extractedGeoms.push(cloned.index ? cloned.toNonIndexed() : cloned);
+              }
             }
           });
 
-          if (extractedGeom) {
+          const mergedRaw =
+            extractedGeoms.length > 1
+              ? BufferGeometryUtils.mergeGeometries(extractedGeoms, false)
+              : extractedGeoms[0] || null;
+
+          if (mergedRaw) {
+            const { geometry: normalizedGeom, dimensionsMm } = normalizeAIGeneratedGeometry(mergedRaw, 80);
+
             onProgress?.('Đang tiến hành cắt lớp tự động và tạo Tree Support...', 90);
             const modelName = `AI_${params.engine.toUpperCase()}_${Date.now().toString().slice(-4)}`;
-            const sliceResult = sliceUniversalGeometry(extractedGeom, modelName);
+            const sliceResult = sliceUniversalGeometry(normalizedGeom, modelName);
 
             const aiModel: ISampleModel = {
               id: `ai-custom-${Date.now()}`,
@@ -176,14 +242,14 @@ export async function generate3DModelFromAI(
               category: 'Organic',
               geometryType: 'custom',
               defaultProfileId: 'profile-standard',
-              dimensionsMm: [60, 80, 60],
+              dimensionsMm,
               estimatedWeightGrams: sliceResult.totalFilamentGrams,
               accentBadge: `AI ${params.engine.toUpperCase()}`,
-              description: `Mô hình được sinh tự động bằng ${params.engine.toUpperCase()} với độ phân giải cao và Tree Support hữu cơ bám sát.`,
+              description: `Mô hình được sinh tự động bằng ${params.engine.toUpperCase()} (${dimensionsMm[0]}×${dimensionsMm[1]}×${dimensionsMm[2]} mm) với Tree Support hữu cơ bám sát.`,
             };
 
             onProgress?.('Hoàn tất!', 100);
-            return { model: aiModel, geometry: extractedGeom, sliceResult };
+            return { model: aiModel, geometry: normalizedGeom, sliceResult };
           }
         }
       }
@@ -199,9 +265,8 @@ export async function generate3DModelFromAI(
   onProgress?.('Đang tính toán cành Tree Support hữu cơ và đường sợi in Bambu...', 85);
   await new Promise((r) => setTimeout(r, 400));
 
-  // Tạo geometry mẫu chất lượng cao dựa trên prompt
   const lowerPrompt = (params.prompt || '').toLowerCase();
-  let baseStlUrl = '/models/highland_cow.stl';
+  const baseStlUrl = '/models/highland_cow.stl';
   let modelName = 'AI Bò Cao Nguyên Scotland (Tree Support)';
 
   if (lowerPrompt.includes('dragon') || lowerPrompt.includes('rồng')) {
@@ -212,22 +277,19 @@ export async function generate3DModelFromAI(
     modelName = 'AI Khớp Bánh Răng Hành Tinh Print-in-Place';
   }
 
-  // Load STL
   const stlLoader = new STLLoader();
   let loadedGeometry: THREE.BufferGeometry;
 
   try {
     loadedGeometry = await stlLoader.loadAsync(baseStlUrl);
-    loadedGeometry.center();
-    loadedGeometry.computeVertexNormals();
   } catch (_) {
-    // Fallback torus knot hoặc sphere nếu không load được
     loadedGeometry = new THREE.TorusKnotGeometry(24, 7, 120, 24);
-    loadedGeometry.center();
   }
 
+  const { geometry: normalizedGeom, dimensionsMm } = normalizeAIGeneratedGeometry(loadedGeometry, 80);
+
   // Cắt lớp và sinh Tree Support hữu cơ
-  const sliceResult = sliceUniversalGeometry(loadedGeometry, modelName);
+  const sliceResult = sliceUniversalGeometry(normalizedGeom, modelName);
 
   const finalModel: ISampleModel = {
     id: `ai-model-${Date.now()}`,
@@ -235,17 +297,17 @@ export async function generate3DModelFromAI(
     category: 'Organic',
     geometryType: 'custom',
     defaultProfileId: 'profile-standard',
-    dimensionsMm: [77, 80, 58],
+    dimensionsMm,
     estimatedWeightGrams: sliceResult.totalFilamentGrams,
     accentBadge: `AI ${params.engine.toUpperCase()}`,
-    description: `Sinh bởi AI Engine (${params.engine.toUpperCase()}) với cành Tree Support hữu cơ bám sát các góc dốc và 500 lớp sợi in thực tế.`,
+    description: `Sinh bởi AI Engine (${params.engine.toUpperCase()}) kích thước ${dimensionsMm[0]}×${dimensionsMm[1]}×${dimensionsMm[2]} mm với cành Tree Support hữu cơ bám sát.`,
   };
 
   onProgress?.('Hoàn tất! Đã nạp vào bàn in.', 100);
 
   return {
     model: finalModel,
-    geometry: loadedGeometry,
+    geometry: normalizedGeom,
     sliceResult,
   };
 }

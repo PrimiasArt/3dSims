@@ -839,13 +839,15 @@ export default function App() {
         currentProfile={profile}
       />
 
-      {/* 6. Export Slicer Profile Modal (.json / .gcode / clipboard) */}
+      {/* 6. Export Slicer Profile & 3MF/STL Modal */}
       <ExportProfileModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         profile={profile}
         metrics={slicingMetrics}
         modelName={currentModel.name}
+        geometry={geometry}
+        modelTransform={modelTransform}
       />
 
       {/* 7. Dual-Engine Comparison Modal (So Sánh 2 Phương Án Engine 1 vs Engine 2) */}
