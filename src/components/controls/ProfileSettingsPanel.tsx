@@ -67,17 +67,50 @@ export function ProfileSettingsPanel({
   return (
     <aside
       className={`fixed top-16 left-3 z-20 transition-all duration-300 ${
-        isOpen ? 'w-80 md:w-[356px]' : 'w-11'
+        isOpen ? 'w-80 md:w-[356px]' : 'w-12'
       }`}
     >
-      <div className="rounded-2xl glass-panel overflow-hidden flex flex-col max-h-[calc(100vh-148px)]">
-        {/* Header / Collapse Toggle */}
-        <div className="px-3.5 py-2.5 border-b studio-border flex items-center justify-between bg-[var(--bg-subtle)]">
-          <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-7 h-7 rounded-lg studio-gold-badge flex items-center justify-center shrink-0">
-              <IconSliders size={13} />
-            </div>
-            {isOpen && (
+      {!isOpen ? (
+        /* Symmetrical Collapsed Vertical Studio Dock */
+        <div className="w-12 rounded-2xl glass-panel py-2 px-1.5 flex flex-col items-center gap-1.5">
+          <button
+            data-testid="toggle-profile-panel-btn"
+            onClick={onToggleOpen}
+            className="w-8 h-8 rounded-xl studio-gold-badge hover:opacity-90 flex items-center justify-center transition-all cursor-pointer"
+            title="Mở bảng thông số cắt lớp (Process)"
+          >
+            <IconChevronRight size={14} />
+          </button>
+
+          <div className="w-5 h-[1px] bg-[var(--border-hairline)] my-0.5" />
+
+          {tabs.map((t) => {
+            const isActive = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setActiveTab(t.id);
+                  onToggleOpen();
+                }}
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                  isActive ? 'studio-pill-active' : 'studio-pill-inactive'
+                }`}
+                title={`Mở nhanh tab: ${t.label}`}
+              >
+                {t.icon}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-2xl glass-panel overflow-hidden flex flex-col max-h-[calc(100vh-148px)]">
+          {/* Header / Collapse Toggle */}
+          <div className="px-3.5 py-2.5 border-b studio-border flex items-center justify-between bg-[var(--bg-subtle)]">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-7 h-7 rounded-lg studio-gold-badge flex items-center justify-center shrink-0">
+                <IconSliders size={13} />
+              </div>
               <div className="leading-tight">
                 <h3 className="text-[11px] font-semibold studio-text-primary uppercase tracking-wider">
                   Thông Số Cắt Lớp (Process)
@@ -86,20 +119,19 @@ export function ProfileSettingsPanel({
                   {profile.material} • {profile.layerHeight}mm • {profile.infillDensity}%
                 </p>
               </div>
-            )}
+            </div>
+
+            <button
+              data-testid="toggle-profile-panel-btn"
+              onClick={onToggleOpen}
+              className="w-7 h-7 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary flex items-center justify-center transition-all cursor-pointer shrink-0"
+              title="Thu gọn bảng thông số"
+            >
+              <IconChevronLeft size={13} />
+            </button>
           </div>
 
-          <button
-            onClick={onToggleOpen}
-            className="p-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary transition-all cursor-pointer shrink-0"
-            title={isOpen ? 'Thu gọn bảng thông số' : 'Mở bảng thông số cắt lớp'}
-          >
-            {isOpen ? <IconChevronLeft size={13} /> : <IconChevronRight size={13} />}
-          </button>
-        </div>
-
-        {/* 6-Tab Minimalist Segmented Navigation */}
-        {isOpen && (
+          {/* 6-Tab Minimalist Segmented Navigation */}
           <div className="grid grid-cols-6 border-b studio-border bg-[var(--bg-subtle)] p-1 gap-0.5">
             {tabs.map((t) => {
               const isActive = activeTab === t.id;
@@ -119,7 +151,6 @@ export function ProfileSettingsPanel({
               );
             })}
           </div>
-        )}
 
         {/* Scrollable Inspector Body */}
         {isOpen && (
@@ -698,7 +729,8 @@ export function ProfileSettingsPanel({
             )}
           </div>
         )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }

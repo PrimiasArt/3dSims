@@ -10,6 +10,8 @@ import {
   IModelTransform,
   ISampleModel,
   ViewportDisplayMode,
+  SimulatorEngineType,
+  IProSlicerTelemetry,
 } from '@/types/simulator';
 import { ISlicingMetrics } from '@/services/slicingEngine';
 import { generateDefect3DGroup, getActiveDefectAlert } from '@/services/defectSimulation';
@@ -23,6 +25,7 @@ import {
   buildFullFilamentPreviewMesh,
 } from '@/services/nativeSupportLoader';
 import { BuildPlateToolbar } from './BuildPlateToolbar';
+import { ProSlicerTelemetryPanel } from '@/components/controls/ProSlicerTelemetryPanel';
 import {
   IconAngle,
   IconChevronUp,
@@ -59,6 +62,11 @@ interface PrintSimulatorViewportProps {
   isSmoothTimelapseActive?: boolean;
   currentModel?: ISampleModel;
   theme?: 'dark' | 'light';
+  onOpenReportModal?: () => void;
+  simulatorEngine?: SimulatorEngineType;
+  proTelemetry?: IProSlicerTelemetry;
+  gcodeLines?: string[];
+  isProfileOpen?: boolean;
 }
 
 export function PrintSimulatorViewport({
@@ -87,6 +95,11 @@ export function PrintSimulatorViewport({
   isSmoothTimelapseActive,
   currentModel,
   theme = 'dark',
+  onOpenReportModal,
+  simulatorEngine = 'wasm_client',
+  proTelemetry,
+  gcodeLines = [],
+  isProfileOpen = true,
 }: PrintSimulatorViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -144,10 +157,10 @@ export function PrintSimulatorViewport({
     setIsDefectDismissed(false);
   }, [simulationState.currentLayer]);
 
-  // Đồng bộ màu nền 3D Canvas & Fog theo Dark / Light Mode
+  // Đồng bộ màu nền 3D Canvas & Fog theo Dark / Softened Light Mode (0xc9c6be)
   useEffect(() => {
     if (!sceneRef.current) return;
-    const bgHex = theme === 'light' ? 0xecebe6 : 0x0b0c0e;
+    const bgHex = theme === 'light' ? 0xc9c6be : 0x0b0c0e;
     sceneRef.current.background = new THREE.Color(bgHex);
     sceneRef.current.fog = new THREE.FogExp2(bgHex, 0.0014);
   }, [theme]);
@@ -161,7 +174,7 @@ export function PrintSimulatorViewport({
 
     // 1.1 Scene
     const scene = new THREE.Scene();
-    const initialBgHex = theme === 'light' ? 0xecebe6 : 0x0b0c0e;
+    const initialBgHex = theme === 'light' ? 0xc9c6be : 0x0b0c0e;
     scene.background = new THREE.Color(initialBgHex);
     scene.fog = new THREE.FogExp2(initialBgHex, 0.0014);
     sceneRef.current = scene;
@@ -1075,6 +1088,73 @@ export function PrintSimulatorViewport({
         />
       )}
 
+      {/* 1.5. Centerpiece Printability Score & Technical Assessment Bar (Đặt giữa màn hình nhấn mạnh khả năng đánh giá) */}
+      <div
+        data-testid="center-printability-score-hud"
+        className={`absolute ${
+          viewMode === 'prepare' ? 'top-29' : 'top-16'
+        } ${
+          isProfileOpen ? 'left-[58%]' : 'left-1/2'
+        } -translate-x-1/2 z-20 pointer-events-auto transition-all duration-300`}
+      >
+        <div
+          onClick={onOpenReportModal}
+          className="px-3.5 py-2 rounded-2xl glass-panel hover:border-[var(--accent-gold)] flex items-center gap-3 cursor-pointer group transition-all shadow-xl"
+          title="Nhấn để xem Báo Cáo Kiểm Định Khả Năng In 3D & Chẩn Đoán Kỹ Thuật Chi Tiết"
+        >
+          {/* Prominent Score Badge */}
+          <div
+            className={`px-2.5 py-1 rounded-xl font-mono flex items-center gap-1.5 border ${
+              preflightReport.printabilityScore >= 80
+                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/35'
+                : preflightReport.printabilityScore >= 50
+                ? 'bg-amber-500/15 text-amber-400 border-amber-500/35'
+                : 'bg-rose-500/15 text-rose-400 border-rose-500/35'
+            }`}
+          >
+            <IconCheckShield size={15} />
+            <div className="leading-none">
+              <span className="text-sm font-black">{preflightReport.printabilityScore}</span>
+              <span className="text-[9px] opacity-75">/100</span>
+            </div>
+          </div>
+
+          {/* Assessment Summary & Live Diagnostics */}
+          <div className="leading-tight pr-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider studio-text-primary">
+                {preflightReport.printabilityScore >= 80
+                  ? 'Đạt Chuẩn An Toàn In 3D'
+                  : preflightReport.printabilityScore >= 50
+                  ? 'Cần Tối Ưu Thông Số In'
+                  : 'Cảnh Báo Nguy Cơ Lỗi Cao'}
+              </span>
+              {preflightReport.errors.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 font-mono text-[9px] font-bold">
+                  {preflightReport.errors.length} cảnh báo
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 text-[10px] font-mono studio-text-secondary mt-0.5">
+              <span>
+                Overhang: <strong className="studio-text-gold">{preflightReport.overhangRiskAreaPercent}%</strong>
+              </span>
+              <span>•</span>
+              <span>
+                Support:{' '}
+                <strong className="studio-text-primary uppercase">
+                  {profile.supportMode === 'none' ? 'Tắt' : profile.supportMode}
+                </strong>
+              </span>
+              <span className="studio-text-gold font-sans font-semibold group-hover:underline ml-1">
+                Chẩn đoán →
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Drag & Drop Overlay */}
       {isDraggingFile && (
         <div className="absolute inset-0 z-40 glass-panel flex flex-col items-center justify-center border-2 border-dashed border-[var(--accent-gold)] m-4 rounded-3xl animate-in fade-in">
@@ -1152,15 +1232,15 @@ export function PrintSimulatorViewport({
         </div>
       )}
 
-      {/* 3. Unified Right Studio HUD Stack (Camera View Presets + Slicing Result + Overhang Scale — Không chồng chéo) */}
+      {/* 3. Unified Right Studio HUD Stack (Camera View Presets + Slicing Result + Overhang Scale + Pro Slicer Local — Không chồng chéo) */}
       <div
         className={`absolute top-16 ${
           viewMode === 'prepare' ? 'right-4' : 'right-18'
-        } z-10 flex flex-col items-end gap-2 pointer-events-auto select-none transition-all`}
+        } z-10 flex flex-col items-end gap-2 pointer-events-auto select-none transition-all max-h-[calc(100vh-175px)] overflow-y-auto`}
       >
         {/* 3.1 Quick Camera Orientation Bar (3D ViewCube Presets) */}
         {onSetCameraView && (
-          <div className="flex items-center gap-0.5 p-1 rounded-xl glass-panel">
+          <div className="flex items-center gap-0.5 p-1 rounded-xl glass-panel shrink-0">
             {(['iso', 'front', 'top', 'nozzle'] as const).map((v) => (
               <button
                 key={v}
@@ -1182,11 +1262,11 @@ export function PrintSimulatorViewport({
         {viewMode !== 'prepare' && (
           <>
             {showSlicingLegend ? (
-              <div className="w-64 rounded-2xl glass-panel p-3.5 text-xs space-y-2.5 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between border-b studio-border pb-2">
+              <div className="w-64 rounded-2xl glass-panel p-3 text-xs space-y-2 animate-in fade-in duration-150 shrink-0">
+                <div className="flex items-center justify-between border-b studio-border pb-1.5">
                   <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-gold)]" />
-                    <span className="font-bold text-[var(--text-primary)] text-[11px] uppercase tracking-wider">Slicing Result</span>
+                    <span className="font-bold text-[var(--text-primary)] text-[10px] uppercase tracking-wider">Slicing Result</span>
                     <span className="text-[9px] font-mono px-1.5 py-0.5 rounded studio-gold-badge font-semibold">
                       {viewMode === 'filament_preview' ? 'G-Code' : 'CAD Slice'}
                     </span>
@@ -1201,37 +1281,37 @@ export function PrintSimulatorViewport({
                 </div>
 
                 {/* Color Scheme Legend */}
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[10px] font-medium">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] font-medium">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#00e050] shrink-0" />
+                    <span className="w-2 h-2 rounded-xs bg-[#00e050] shrink-0" />
                     <span className="text-[var(--text-primary)] font-semibold truncate">Tường ngoài</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#047857] shrink-0" />
+                    <span className="w-2 h-2 rounded-xs bg-[#047857] shrink-0" />
                     <span className="text-[var(--text-secondary)] truncate">Tường trong</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#f59e0b] shrink-0" />
+                    <span className="w-2 h-2 rounded-xs bg-[#f59e0b] shrink-0" />
                     <span className="text-[var(--text-primary)] font-semibold truncate">
                       Ruột ({profile.infillDensity}%)
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#10b981] shrink-0" />
+                    <span className="w-2 h-2 rounded-xs bg-[#10b981] shrink-0" />
                     <span className="text-[var(--text-primary)] font-semibold truncate">Tree Support</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#d946ef] shrink-0" />
+                    <span className="w-2 h-2 rounded-xs bg-[#d946ef] shrink-0" />
                     <span className="text-[var(--text-secondary)] truncate">Mặt tiếp xúc</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-white ring-1 ring-black/20 shrink-0" />
+                    <span className="w-2 h-2 rounded-full bg-white ring-1 ring-black/20 shrink-0" />
                     <span className="text-[var(--text-secondary)] truncate">Mối nối Seam</span>
                   </div>
                 </div>
 
                 {/* Real Dynamic Filament & Support Weight Breakdown */}
-                <div className="border-t studio-border pt-2 space-y-1 font-mono text-[10px]">
+                <div className="border-t studio-border pt-1.5 space-y-0.5 font-mono text-[10px]">
                   <div className="flex items-center justify-between text-[var(--text-secondary)]">
                     <span>Phôi in (Model):</span>
                     <span className="text-[var(--text-primary)] font-bold">{modelGrams} g</span>
@@ -1249,7 +1329,7 @@ export function PrintSimulatorViewport({
                 </div>
 
                 {/* Integrated Live Z-Height & Active Extrusion Task */}
-                <div className="border-t studio-border pt-2 flex items-center justify-between text-[10px] font-mono">
+                <div className="border-t studio-border pt-1.5 flex items-center justify-between text-[10px] font-mono">
                   <div className="text-[var(--text-muted)]">
                     Z: <strong className="text-[var(--text-primary)]">{currentZMm}mm</strong>
                   </div>
@@ -1267,7 +1347,7 @@ export function PrintSimulatorViewport({
             ) : (
               <button
                 onClick={() => setShowSlicingLegend(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-panel text-[var(--text-primary)] hover:border-[var(--accent-gold)] text-xs font-semibold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-panel text-[var(--text-primary)] hover:border-[var(--accent-gold)] text-xs font-semibold transition-all cursor-pointer shrink-0"
                 title="Mở bảng chú giải màu & khối lượng nhựa Bambu Studio"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-gold)]" />
@@ -1279,25 +1359,36 @@ export function PrintSimulatorViewport({
 
         {/* 3.3 Overhang Heatmap Scale Indicator */}
         {(showHeatmap || renderMode === 'defects') && (
-          <div className="w-64 p-3 rounded-2xl glass-panel-danger text-xs space-y-1.5 shadow-2xl animate-in fade-in">
-            <div className="flex items-center gap-1.5 font-bold text-rose-400">
+          <div className="w-64 p-2.5 rounded-2xl glass-panel-danger text-xs space-y-1 shadow-2xl animate-in fade-in shrink-0">
+            <div className="flex items-center gap-1.5 font-bold text-rose-400 text-[11px]">
               <IconAngle className="w-3.5 h-3.5" />
               <span>Thước Đo Góc Overhang</span>
             </div>
-            <div className="space-y-1 text-[10px] text-[var(--text-secondary)]">
+            <div className="space-y-0.5 text-[10px] text-[var(--text-secondary)]">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-[#EF4444] shrink-0" />
                 <span>Góc &gt; 50° (Cần nhánh Tree Support)</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-[#F59E0B] shrink-0" />
                 <span>Góc 40° – 50° (Nguy cơ nhăn mép)</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#2DD4BF] shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-[#2DD4BF] shrink-0" />
                 <span>Góc &lt; 40° (Tự đỡ an toàn)</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 3.4 Engine 2: Pro Slicer Local Telemetry Card (Được chuyển sang cột HUD bên phải để không bị che bởi Menu trái) */}
+        {simulatorEngine === 'pro_local' && proTelemetry && (
+          <div className="shrink-0">
+            <ProSlicerTelemetryPanel
+              telemetry={proTelemetry}
+              state={simulationState}
+              gcodeLines={gcodeLines}
+            />
           </div>
         )}
       </div>

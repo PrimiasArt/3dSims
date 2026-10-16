@@ -544,7 +544,7 @@ export function SimulatorHeader({
             className="p-2 rounded-xl glass-panel hover:opacity-85 transition-all cursor-pointer"
             title={
               theme === 'dark'
-                ? 'Chuyển sang Giao diện Sáng (Light Studio Mode)'
+                ? 'Chuyển sang Giao diện Sáng (Soft Daylight Studio)'
                 : 'Chuyển sang Giao diện Tối (Obsidian Dark Mode)'
             }
           >
@@ -555,19 +555,6 @@ export function SimulatorHeader({
             )}
           </button>
         )}
-
-        {/* Printability Inspection Score */}
-        <button
-          onClick={onOpenReportModal}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass-panel text-xs font-medium transition-all active:scale-95 cursor-pointer hover:border-[var(--accent-gold-border)]"
-          title="Báo cáo kiểm định khả năng in (Pre-flight Inspection)"
-        >
-          <IconCheckShield size={13} className="studio-text-gold" />
-          <span className="font-mono font-bold studio-text-primary">
-            {preflightReport.printabilityScore}
-          </span>
-          <span className="text-[10px] studio-text-muted hidden sm:inline">/100</span>
-        </button>
 
         {/* Primary Export CTA */}
         <button
