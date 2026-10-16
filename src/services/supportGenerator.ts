@@ -164,19 +164,19 @@ function createSmoothOrganicBranchGeom(
 
   const positions: number[] = [];
   const indices: number[] = [];
-  const up = new THREE.Vector3(0, 1, 0);
+  const refVec = new THREE.Vector3(1, 0, 0);
+  const altRef = new THREE.Vector3(0, 0, 1);
 
-  // Sinh các vòng tròn đỉnh quanh tiếp tuyến của trục thân cây
+  // Sinh các vòng tròn đỉnh quanh tiếp tuyến của trục thân cây (không bị xoắn khi T song song trục Y)
   for (let i = 0; i <= numRings; i++) {
     const t = i / numRings;
     const currentRadius = rBottom * (1 - t) + rTop * t;
     const center = ringCenters[i];
     const T = tangents[i];
 
-    // Khung tọa độ cục bộ Frenet vuông góc tiếp tuyến
-    let N = new THREE.Vector3().crossVectors(T, up).normalize();
+    let N = new THREE.Vector3().crossVectors(T, Math.abs(T.x) < 0.85 ? refVec : altRef).normalize();
     if (N.lengthSq() < 0.001) {
-      N = new THREE.Vector3().crossVectors(T, new THREE.Vector3(1, 0, 0)).normalize();
+      N = new THREE.Vector3(0, 0, 1);
     }
     const B = new THREE.Vector3().crossVectors(T, N).normalize();
 

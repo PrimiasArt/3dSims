@@ -17,6 +17,7 @@ import { layerSliceCache, createSliceToolpathMeshes } from '@/services/meshSlice
 import { generateBambuSupportStructures } from '@/services/supportGenerator';
 import {
   loadNativeBambuSupport,
+  getCachedNativeSupport,
   buildNativeSupportMesh,
   loadFullBambuToolpaths,
   buildFullFilamentPreviewMesh,
@@ -428,6 +429,8 @@ export function PrintSimulatorViewport({
     (window as any).__THREE__ = THREE;
     (window as any).__DEBUG_THREE__ = {
       scene: sceneRef.current,
+      camera: cameraRef.current,
+      controls: controlsRef.current,
       printedMesh,
       ghostMesh,
       clippingPlane: clippingPlaneRef.current,
@@ -564,7 +567,36 @@ export function PrintSimulatorViewport({
     const parentGroup = modelRootGroupRef.current;
     if (!parentGroup || !sceneRef.current) return;
 
-    // Full Filament Toolpaths Preview nạp cho chế độ xem trước sợi in Bambu Studio
+    // 1. Nạp và đính kèm Tree Support Native từ Bambu Studio G-code
+    if (profile.supportMode !== 'none') {
+      loadNativeBambuSupport(currentModel?.name || currentModel?.id, (currentModel as any)?.path).then((nativeData) => {
+        if (!modelRootGroupRef.current) return;
+        const curSupportGroup = modelRootGroupRef.current.getObjectByName('support_structures_group');
+        if (curSupportGroup && nativeData && nativeData.segments && nativeData.segments.length > 0) {
+          while (curSupportGroup.children.length > 0) {
+            const c = curSupportGroup.children[0];
+            curSupportGroup.remove(c);
+            if (c instanceof THREE.Mesh || c instanceof THREE.LineSegments) {
+              c.geometry?.dispose();
+              if (Array.isArray(c.material)) c.material.forEach((m) => m.dispose());
+              else c.material?.dispose();
+            }
+          }
+          const nativeMesh = buildNativeSupportMesh(nativeData);
+          nativeMesh.name = 'native_bambu_toolpaths';
+          if (clippingPlaneRef.current) {
+            nativeMesh.traverse((child) => {
+              if ((child as THREE.Mesh).isMesh) {
+                const mat = (child as THREE.Mesh).material;
+                if (Array.isArray(mat)) mat.forEach((m) => (m.clippingPlanes = [clippingPlaneRef.current!]));
+                else if (mat) mat.clippingPlanes = [clippingPlaneRef.current!];
+              }
+            });
+          }
+          curSupportGroup.add(nativeMesh);
+        }
+      });
+    }
 
     // 2. Nạp và đính kèm Full Filament Toolpaths Preview
     loadFullBambuToolpaths(currentModel?.name || currentModel?.id, (currentModel as any)?.path).then((toolpathsData) => {
@@ -1656,11 +1688,45 @@ function updateSupportStructures(
     parent.add(brimMesh);
   }
 
-  // 2. Cấu trúc Tree Support 3D hữu cơ hoàn mỹ chuẩn Bambu Studio (Solid Organic Mesh)
+  // 2. Cấu trúc Tree Support 3D chính thức từ Bambu Studio CLI G-code
   if (profile.supportMode !== 'none' && visible) {
-    const supportGroup = generateBambuSupportStructures(geometry, profile);
+    const supportGroup = new THREE.Group();
     supportGroup.name = 'support_structures_group';
     parent.add(supportGroup);
+
+    const cachedNative = getCachedNativeSupport(modelIdentifier, modelPath);
+    if (cachedNative && cachedNative.segments && cachedNative.segments.length > 0) {
+      const nativeMesh = buildNativeSupportMesh(cachedNative);
+      nativeMesh.name = 'native_bambu_toolpaths';
+      supportGroup.add(nativeMesh);
+      return supportGroup;
+    }
+
+    loadNativeBambuSupport(modelIdentifier, modelPath).then((nativeData) => {
+      if (parent.getObjectByName('support_structures_group') !== supportGroup) return;
+
+      while (supportGroup.children.length > 0) {
+        const child = supportGroup.children[0];
+        supportGroup.remove(child);
+        if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
+          child.geometry?.dispose();
+          if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose());
+          else child.material?.dispose();
+        }
+      }
+
+      if (nativeData && nativeData.segments && nativeData.segments.length > 0) {
+        const nativeMesh = buildNativeSupportMesh(nativeData);
+        nativeMesh.name = 'native_bambu_toolpaths';
+        supportGroup.add(nativeMesh);
+      } else {
+        const fallback = generateBambuSupportStructures(geometry, profile);
+        while (fallback.children.length > 0) {
+          supportGroup.add(fallback.children[0]);
+        }
+      }
+    });
+
     return supportGroup;
   }
 

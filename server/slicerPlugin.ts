@@ -227,92 +227,177 @@ export function extractSupportFromGCode(
   modelPath?: string
 ): INativeSupportData {
   const lines = gcodeText.split('\n');
-  let curX = 128, curY = 128, curZ = 0;
+  let curX = 128, curY = 128, curZ = 0.2, layerZ = 0.2;
   let inSupport = false;
   let isInterface = false;
+  let inWipe = false;
   const segments: INativeSupportSegment[] = [];
-  let currentSegment: INativeSupportSegment | null = null;
+  let curLoopPts: number[] = [];
+
+  const flushLoop = () => {
+    const n = curLoopPts.length / 3;
+    if (n >= 2) {
+      // Tự động khép kín vòng chu vi nhánh cây nếu điểm đầu và điểm cuối gần nhau (seam gap <= 2.8mm)
+      if (n >= 4) {
+        const sx = curLoopPts[0], sy = curLoopPts[1], sz = curLoopPts[2];
+        const ex = curLoopPts[(n - 1) * 3], ey = curLoopPts[(n - 1) * 3 + 1], ez = curLoopPts[(n - 1) * 3 + 2];
+        const closeDist = Math.hypot(ex - sx, ez - sz);
+        if (closeDist > 0.05 && closeDist <= 2.8 && Math.abs(ey - sy) < 0.08) {
+          curLoopPts.push(sx, sy, sz);
+        }
+      }
+      const pairPts: number[] = [];
+      for (let k = 0; k < curLoopPts.length - 3; k += 3) {
+        pairPts.push(
+          curLoopPts[k], curLoopPts[k + 1], curLoopPts[k + 2],
+          curLoopPts[k + 3], curLoopPts[k + 4], curLoopPts[k + 5]
+        );
+      }
+      if (pairPts.length >= 6) {
+        segments.push({ isInterface, points: pairPts });
+      }
+    }
+    curLoopPts = [];
+  };
+
+  const addLoopPoint = (bx: number, by: number, bz: number, force = false) => {
+    const tx = Number((bx - 128).toFixed(2));
+    const ty = Number(bz.toFixed(2));
+    const tz = Number((by - 128).toFixed(2));
+    if (curLoopPts.length === 0) {
+      curLoopPts.push(tx, ty, tz);
+      return;
+    }
+    const lx = curLoopPts[curLoopPts.length - 3];
+    const ly = curLoopPts[curLoopPts.length - 2];
+    const lz = curLoopPts[curLoopPts.length - 1];
+    const dist = Math.hypot(tx - lx, ty - ly, tz - lz);
+    if ((force && dist > 0.02) || dist >= 0.70) {
+      curLoopPts.push(tx, ty, tz);
+    }
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Cập nhật cao độ lớp in từ comment ;Z:
-    if (line.startsWith(';Z:')) {
-      const zVal = parseFloat(line.slice(3));
-      if (!isNaN(zVal)) curZ = zVal;
+    if (line.startsWith('; WIPE_START')) {
+      inWipe = true;
+      flushLoop();
+      continue;
+    }
+    if (line.startsWith('; WIPE_END')) {
+      inWipe = false;
+      continue;
     }
 
-    if (line.startsWith('; FEATURE:') || line.startsWith(';TYPE:')) {
-      if (line.includes('Support interface') || line.includes('support_interface')) {
-        inSupport = true;
-        isInterface = true;
-        if (currentSegment && currentSegment.points.length >= 6) {
-          segments.push(currentSegment);
-        }
-        currentSegment = { isInterface: true, points: [] };
-      } else if (line.includes('Support') || line.includes('Tree support') || line.includes('support')) {
-        inSupport = true;
-        isInterface = false;
-        if (currentSegment && currentSegment.points.length >= 6) {
-          segments.push(currentSegment);
-        }
-        currentSegment = { isInterface: false, points: [] };
-      } else {
-        inSupport = false;
-        if (currentSegment && currentSegment.points.length >= 6) {
-          segments.push(currentSegment);
-          currentSegment = null;
-        }
+    if (line.startsWith('; CHANGE_LAYER') || line.startsWith(';LAYER_CHANGE')) {
+      flushLoop();
+      continue;
+    }
+
+    // Cập nhật cao độ lớp in chuẩn xác từ ; Z_HEIGHT: hoặc ;Z:
+    if (line.startsWith('; Z_HEIGHT:') || line.startsWith(';Z:')) {
+      const zVal = parseFloat(line.slice(line.indexOf(':') + 1));
+      if (!isNaN(zVal) && zVal > 0) {
+        layerZ = zVal;
+        curZ = zVal;
       }
       continue;
     }
 
-    if (line.startsWith('G1 ') || line.startsWith('G0 ')) {
+    if (line.startsWith('; FEATURE:') || line.startsWith(';TYPE:')) {
+      flushLoop();
+      if (line.includes('Support interface') || line.includes('support_interface')) {
+        inSupport = true;
+        isInterface = true;
+      } else if (
+        line.includes('Support') ||
+        line.includes('Tree support') ||
+        line.includes('support') ||
+        (layerZ <= 0.32 && (line.includes('Skirt') || line.includes('Brim')))
+      ) {
+        inSupport = true;
+        isInterface = false;
+      } else {
+        inSupport = false;
+      }
+      continue;
+    }
+
+    const isG0 = line.startsWith('G0 ');
+    const isG1 = line.startsWith('G1 ');
+    const isG2 = line.startsWith('G2 ');
+    const isG3 = line.startsWith('G3 ');
+
+    if (isG0 || isG1 || isG2 || isG3) {
       const matchX = /X([-\d.]+)/.exec(line);
       const matchY = /Y([-\d.]+)/.exec(line);
       const matchZ = /Z([-\d.]+)/.exec(line);
-      const hasE = /E([-\d.]+)/.test(line);
+      const matchE = /E([-\d.]+)/.exec(line);
 
       const nextX = matchX ? parseFloat(matchX[1]) : curX;
       const nextY = matchY ? parseFloat(matchY[1]) : curY;
       const nextZ = matchZ ? parseFloat(matchZ[1]) : curZ;
+      const eVal = matchE ? parseFloat(matchE[1]) : 0;
+      const moveXY = Math.hypot(nextX - curX, nextY - curY);
 
-      if (inSupport && hasE) {
-        if (!currentSegment) {
-          currentSegment = { isInterface, points: [] };
+      if (inSupport && !inWipe && eVal > 0 && moveXY > 0.005) {
+        const effZ = layerZ > 0 ? layerZ : nextZ;
+        if (curLoopPts.length === 0) {
+          addLoopPoint(curX, curY, effZ, true);
         }
-        // Chuyển đổi tọa độ Bambu Studio (X: 0..256, Y: 0..256, Z: 0..256) sang Three.js (X: -128..128, Y: 0..256, Z: -128..128)
-        const tX1 = Number((curX - 128).toFixed(2));
-        const tY1 = Number(curZ.toFixed(2));
-        const tZ1 = Number((curY - 128).toFixed(2));
 
-        const tX2 = Number((nextX - 128).toFixed(2));
-        const tY2 = Number(nextZ.toFixed(2));
-        const tZ2 = Number((nextY - 128).toFixed(2));
+        if (isG2 || isG3) {
+          const matchI = /I([-\d.]+)/.exec(line);
+          const matchJ = /J([-\d.]+)/.exec(line);
+          const I = matchI ? parseFloat(matchI[1]) : 0;
+          const J = matchJ ? parseFloat(matchJ[1]) : 0;
+          const cx = curX + I;
+          const cy = curY + J;
+          const r = Math.hypot(I, J);
 
-        const dist = Math.hypot(tX2 - tX1, tY2 - tY1, tZ2 - tZ1);
-        if (dist > 0.01 && dist < 50) {
-          currentSegment.points.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+          if (r > 0.05 && r < 220) {
+            const a1 = Math.atan2(curY - cy, curX - cx);
+            const a2 = Math.atan2(nextY - cy, nextX - cx);
+            let da = a2 - a1;
+            if (isG3 && da <= 1e-6) da += Math.PI * 2;
+            if (isG2 && da >= -1e-6) da -= Math.PI * 2;
+
+            // Bảo vệ chống nhiễu góc rất nhỏ gần 0 bị nhảy thành 2*PI
+            if (Math.abs(da) > Math.PI * 1.8 && moveXY < 0.5 && eVal < r * 0.04) {
+              addLoopPoint(nextX, nextY, effZ, true);
+            } else {
+              const arcLen = r * Math.abs(da);
+              const steps = Math.max(1, Math.min(28, Math.ceil(arcLen / 0.80)));
+              for (let s = 1; s <= steps; s++) {
+                if (s === steps) {
+                  addLoopPoint(nextX, nextY, effZ, true);
+                } else {
+                  const a = a1 + da * (s / steps);
+                  addLoopPoint(cx + Math.cos(a) * r, cy + Math.sin(a) * r, effZ, false);
+                }
+              }
+            }
+          } else if (moveXY < 55) {
+            addLoopPoint(nextX, nextY, effZ, true);
+          }
+        } else if (moveXY < 55) {
+          addLoopPoint(nextX, nextY, effZ, false);
         }
-      } else if (inSupport && !hasE) {
-        // Lệnh di chuyển travel không đùn nhựa: ngắt đoạn để không vẽ đường giăng bậy
-        if (currentSegment && currentSegment.points.length >= 6) {
-          segments.push(currentSegment);
-          currentSegment = null;
-        }
+      } else if (inSupport && (eVal <= 0 || isG0) && moveXY > 0.05) {
+        // Ngắt đoạn ngay khi đầu in di chuyển không đùn nhựa (travel / retract)
+        flushLoop();
       }
 
-      // LUÔN LUÔN cập nhật tọa độ đầu in trên mọi lệnh di chuyển G0/G1
+      // LUÔN LUÔN cập nhật tọa độ đầu in trên mọi lệnh G0/G1/G2/G3
       curX = nextX;
       curY = nextY;
       curZ = nextZ;
     }
   }
 
-  if (currentSegment && currentSegment.points.length >= 6) {
-    segments.push(currentSegment);
-  }
+  flushLoop();
 
   return {
     model: modelName,
@@ -341,17 +426,18 @@ export interface IFullToolpathData {
 }
 
 /**
- * Trích xuất toàn bộ các đường chạy dao in thực tế (Outer walls, Inner walls, Support, Interface, Brim, Z-seams)
- * từ G-code Bambu Studio / PrusaSlicer sang hệ tọa độ Three.js
+ * Trích xuất toàn bộ các đường chạy dao in thực tế (Outer walls, Inner walls, Infill, Support, Interface, Brim, Z-seams)
+ * từ G-code Bambu Studio / PrusaSlicer sang hệ tọa độ Three.js (Hỗ trợ đầy đủ G0/G1/G2/G3 Arcs)
  */
 export function extractFullToolpathsFromGCode(
   gcodeText: string,
   modelName = 'Bambu Studio Native Model'
 ): IFullToolpathData {
   const lines = gcodeText.split('\n');
-  let curX = 128, curY = 128, curZ = 0;
+  let curX = 128, curY = 128, curZ = 0.2, layerZ = 0.2;
   let curFeature = 'none';
   let curLayer = 0;
+  let inWipe = false;
 
   const outerWalls: number[] = [];
   const innerWalls: number[] = [];
@@ -366,9 +452,53 @@ export function extractFullToolpathsFromGCode(
 
   let isNewOuterLoop = true;
 
+  const pushMoveToFeature = (x1: number, y1: number, x2: number, y2: number, z: number) => {
+    const tX1 = Number((x1 - 128).toFixed(2));
+    const tY1 = Number(z.toFixed(2));
+    const tZ1 = Number((y1 - 128).toFixed(2));
+
+    const tX2 = Number((x2 - 128).toFixed(2));
+    const tY2 = Number(z.toFixed(2));
+    const tZ2 = Number((y2 - 128).toFixed(2));
+
+    const dist = Math.hypot(tX2 - tX1, tZ2 - tZ1);
+    if (dist < 0.03 || dist > 65) return;
+
+    if (curFeature.includes('Outer wall') || curFeature.includes('Overhang wall') || curFeature.includes('Top surface')) {
+      outerWalls.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+      if (isNewOuterLoop) {
+        seams.push(tX1, tY1, tZ1);
+        isNewOuterLoop = false;
+      }
+    } else if (curFeature.includes('Inner wall') || curFeature.includes('Floating vertical shell') || curFeature.includes('Bridge')) {
+      innerWalls.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+    } else if (curFeature.includes('Sparse infill') || curFeature.includes('Internal solid infill') || curFeature.includes('infill') || curFeature.includes('Infill')) {
+      infills.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+    } else if (curFeature.includes('Support interface') || curFeature.includes('support_interface')) {
+      interfaces.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+    } else if (curFeature.includes('Support') || curFeature.includes('Tree')) {
+      if (z <= 0.30) {
+        brims.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+      } else {
+        supports.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+      }
+    } else if (curFeature.includes('Skirt') || curFeature.includes('Brim')) {
+      brims.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+    }
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
+
+    if (line.startsWith('; WIPE_START')) {
+      inWipe = true;
+      continue;
+    }
+    if (line.startsWith('; WIPE_END')) {
+      inWipe = false;
+      continue;
+    }
 
     if (line.startsWith('; CHANGE_LAYER') || line.startsWith(';LAYER_CHANGE')) {
       curLayer++;
@@ -381,55 +511,77 @@ export function extractFullToolpathsFromGCode(
         seams.length / 3,
       ];
       isNewOuterLoop = true;
-    } else if (line.startsWith(';Z:')) {
-      const zVal = parseFloat(line.slice(3));
-      if (!isNaN(zVal)) curZ = zVal;
+    } else if (line.startsWith('; Z_HEIGHT:') || line.startsWith(';Z:')) {
+      const zVal = parseFloat(line.slice(line.indexOf(':') + 1));
+      if (!isNaN(zVal) && zVal > 0) {
+        layerZ = zVal;
+        curZ = zVal;
+      }
     } else if (line.startsWith('; FEATURE:') || line.startsWith(';TYPE:')) {
       const feat = line.slice(line.indexOf(':') + 1).trim();
       if (feat !== curFeature) {
         if (feat.includes('Outer wall') || feat.includes('Overhang wall')) isNewOuterLoop = true;
         curFeature = feat;
       }
-    } else if (line.startsWith('G1 ') || line.startsWith('G0 ')) {
+    } else if (
+      line.startsWith('G0 ') ||
+      line.startsWith('G1 ') ||
+      line.startsWith('G2 ') ||
+      line.startsWith('G3 ')
+    ) {
+      const isG2 = line.startsWith('G2 ');
+      const isG3 = line.startsWith('G3 ');
       const matchX = /X([-\d.]+)/.exec(line);
       const matchY = /Y([-\d.]+)/.exec(line);
       const matchZ = /Z([-\d.]+)/.exec(line);
-      const hasE = /E([-\d.]+)/.test(line);
+      const matchE = /E([-\d.]+)/.exec(line);
 
       const nextX = matchX ? parseFloat(matchX[1]) : curX;
       const nextY = matchY ? parseFloat(matchY[1]) : curY;
       const nextZ = matchZ ? parseFloat(matchZ[1]) : curZ;
+      const eVal = matchE ? parseFloat(matchE[1]) : 0;
+      const moveXY = Math.hypot(nextX - curX, nextY - curY);
 
-      if (hasE) {
-        const tX1 = Number((curX - 128).toFixed(2));
-        const tY1 = Number(curZ.toFixed(2));
-        const tZ1 = Number((curY - 128).toFixed(2));
+      if (!inWipe && eVal > 0 && moveXY > 0.01) {
+        const effZ = layerZ > 0 ? layerZ : nextZ;
+        if (isG2 || isG3) {
+          const matchI = /I([-\d.]+)/.exec(line);
+          const matchJ = /J([-\d.]+)/.exec(line);
+          const I = matchI ? parseFloat(matchI[1]) : 0;
+          const J = matchJ ? parseFloat(matchJ[1]) : 0;
+          const cx = curX + I;
+          const cy = curY + J;
+          const r = Math.hypot(I, J);
 
-        const tX2 = Number((nextX - 128).toFixed(2));
-        const tY2 = Number(nextZ.toFixed(2));
-        const tZ2 = Number((nextY - 128).toFixed(2));
+          if (r > 0.05 && r < 220) {
+            const a1 = Math.atan2(curY - cy, curX - cx);
+            const a2 = Math.atan2(nextY - cy, nextX - cx);
+            let da = a2 - a1;
+            if (isG3 && da <= 1e-6) da += Math.PI * 2;
+            if (isG2 && da >= -1e-6) da -= Math.PI * 2;
 
-        const dist = Math.hypot(tX2 - tX1, tY2 - tY1, tZ2 - tZ1);
-        if (dist > 0.05 && dist < 50) {
-          if (curFeature.includes('Outer wall') || curFeature.includes('Overhang wall')) {
-            outerWalls.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
-            if (isNewOuterLoop) {
-              seams.push(tX1, tY1, tZ1);
-              isNewOuterLoop = false;
+            if (Math.abs(da) > Math.PI * 1.8 && moveXY < 0.5 && eVal < r * 0.04) {
+              pushMoveToFeature(curX, curY, nextX, nextY, effZ);
+            } else {
+              const arcLen = r * Math.abs(da);
+              const steps = Math.max(1, Math.min(20, Math.ceil(arcLen / 1.2)));
+              let px = curX;
+              let py = curY;
+              for (let s = 1; s <= steps; s++) {
+                const nx = s === steps ? nextX : cx + Math.cos(a1 + da * (s / steps)) * r;
+                const ny = s === steps ? nextY : cy + Math.sin(a1 + da * (s / steps)) * r;
+                pushMoveToFeature(px, py, nx, ny, effZ);
+                px = nx;
+                py = ny;
+              }
             }
-          } else if (curFeature.includes('Inner wall')) {
-            innerWalls.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
-          } else if (curFeature.includes('infill') || curFeature.includes('Infill')) {
-            infills.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
-          } else if (curFeature.includes('Support interface')) {
-            interfaces.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
-          } else if (curFeature.includes('Support') || curFeature.includes('Tree')) {
-            supports.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
-          } else if (curFeature.includes('Skirt') || curFeature.includes('Brim')) {
-            brims.push(tX1, tY1, tZ1, tX2, tY2, tZ2);
+          } else {
+            pushMoveToFeature(curX, curY, nextX, nextY, effZ);
           }
+        } else {
+          pushMoveToFeature(curX, curY, nextX, nextY, effZ);
         }
-      } else {
+      } else if (eVal <= 0 && moveXY > 0.1) {
         if (curFeature.includes('Outer wall')) isNewOuterLoop = true;
       }
 
@@ -745,6 +897,22 @@ export async function sliceWithBambuStudioCLI(
     const templatePath = 'C:\\Users\\Admin\\Downloads\\ogen+open1+++3mf.3mf';
     const ok = wrapSTLToBambu3MF(fs.readFileSync(filePath), templatePath, target3mf);
     if (!ok) target3mf = filePath;
+  } else if (lower.endsWith('.3mf')) {
+    try {
+      const rawBuf = fs.readFileSync(filePath);
+      const zipFiles = unzipSync(new Uint8Array(rawBuf));
+      if (zipFiles['Metadata/project_settings.config']) {
+        let projStr = strFromU8(zipFiles['Metadata/project_settings.config']);
+        if (/"enable_support":\s*"0"/.test(projStr)) {
+          projStr = projStr.replace(/"enable_support":\s*"[^"]*"/, '"enable_support": "1"');
+          projStr = projStr.replace(/"support_type":\s*"[^"]*"/, '"support_type": "tree(organic)"');
+          zipFiles['Metadata/project_settings.config'] = strToU8(projStr);
+          const patchedPath = path.join(tempDir, `patched_${fileHash}.3mf`);
+          fs.writeFileSync(patchedPath, Buffer.from(zipSync(zipFiles)));
+          target3mf = patchedPath;
+        }
+      }
+    } catch (_) {}
   }
 
   const findGCode = (): string | null => {
@@ -1358,7 +1526,10 @@ export function slicerBridgePlugin(): Plugin {
         // 2. Nếu client yêu cầu một file mô hình cụ thể (3MF / STL / OBJ)
         if (modelFilePath && fs.existsSync(modelFilePath)) {
           const crypto = await import('crypto');
-          const fileHash = crypto.createHash('md5').update(modelFilePath).digest('hex').slice(0, 12);
+          const uploadMatch = /upload_([a-f0-9]{12})/i.exec(modelFilePath);
+          const fileHash = uploadMatch
+            ? uploadMatch[1]
+            : crypto.createHash('md5').update(modelFilePath).digest('hex').slice(0, 12);
           const perModelCachePath = path.join(tempDir, `support_${fileHash}.json`);
 
           if (fs.existsSync(perModelCachePath)) {
@@ -1449,7 +1620,10 @@ export function slicerBridgePlugin(): Plugin {
         // 2. Nếu có file tùy chỉnh được chỉ định
         if (modelFilePath && fs.existsSync(modelFilePath)) {
           const crypto = await import('crypto');
-          const fileHash = crypto.createHash('md5').update(modelFilePath).digest('hex').slice(0, 12);
+          const uploadMatch = /upload_([a-f0-9]{12})/i.exec(modelFilePath);
+          const fileHash = uploadMatch
+            ? uploadMatch[1]
+            : crypto.createHash('md5').update(modelFilePath).digest('hex').slice(0, 12);
           const perModelCachePath = path.join(tempDir, `toolpaths_${fileHash}.json`);
 
           if (fs.existsSync(perModelCachePath)) {
