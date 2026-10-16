@@ -12,6 +12,7 @@ class Settings:
         self.host: str = os.getenv("HOST", "127.0.0.1")
         self.port: int = int(os.getenv("PORT", "8000"))
         self.vault_root: str = os.getenv("VAULT_ROOT", str(Path("ObsidianVault").resolve()))
+        self.json_root: str = os.getenv("JSON_ROOT", str(Path("JsonLogs").resolve()))
         self.db_path: str = os.getenv("SQLITE_DB_PATH", str(Path("telemetry_buffer.db").resolve()))
         self.gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
         self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")

@@ -25,6 +25,15 @@ class TelemetryEventResponse(BaseModel):
     recorded_at: str
 
 
+class AuditGenerateRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    profile: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Full snapshot of the current 3D simulator profile covering all 5 tabs and extrusion",
+    )
+
+
 class AuditGenerateResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 

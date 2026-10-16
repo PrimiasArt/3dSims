@@ -27,6 +27,7 @@ class RecordTelemetryEventOutput:
 class GenerateDualAuditInput:
     session_id: str
     model_name: Optional[str] = None
+    profile_snapshot: Optional[Dict[str, Any]] = None
 
 
 @dataclass(frozen=True)

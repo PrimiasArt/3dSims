@@ -28,6 +28,9 @@ class ParameterMetric:
     initial_value: Any
     final_value: Any
     change_history: List[Any] = field(default_factory=list)
+    tab_name: str = "Cơ Bản"
+    label: str = ""
+    unit: str = ""
 
     @property
     def is_high_churn(self) -> bool:
@@ -36,7 +39,12 @@ class ParameterMetric:
 
     @property
     def churn_severity(self) -> str:
-        return "HIGH_HESITATION" if self.is_high_churn else "NORMAL"
+        if self.mutation_count >= 3:
+            return "HIGH_HESITATION"
+        if self.mutation_count > 0:
+            return "NORMAL"
+        return "BASELINE"
+
 
 
 @dataclass

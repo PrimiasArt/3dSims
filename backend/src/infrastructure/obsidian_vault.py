@@ -16,18 +16,39 @@ from backend.src.domain.protocols import VaultStorageProtocol
 class ObsidianVaultAdapter(VaultStorageProtocol):
     """Adapter for storing audits in an Obsidian Vault structure."""
 
-    def __init__(self, vault_root: str = "ObsidianVault") -> None:
+    def __init__(
+        self,
+        vault_root: str = "ObsidianVault",
+        json_root: str = "JsonLogs",
+    ) -> None:
         self._vault_root = Path(vault_root).resolve()
+        self._json_root = Path(json_root).resolve()
         self._vault_root.mkdir(parents=True, exist_ok=True)
+        self._json_root.mkdir(parents=True, exist_ok=True)
 
-    def _resolve_safe_path(self, filename: str) -> Path:
-        """Resolves target path and enforces that it remains within vault_root boundary."""
+    def _resolve_safe_md_path(self, filename: str) -> Path:
+        """Resolves target markdown path and enforces that it remains within vault_root boundary."""
         target = (self._vault_root / filename).resolve()
         try:
             target.relative_to(self._vault_root)
         except ValueError:
             raise PathTraversalSecurityError(filename)
         return target
+
+    def _resolve_safe_json_path(self, filename: str) -> Path:
+        """Resolves target JSON path and enforces that it remains within json_root boundary."""
+        target = (self._json_root / filename).resolve()
+        try:
+            target.relative_to(self._json_root)
+        except ValueError:
+            raise PathTraversalSecurityError(filename)
+        return target
+
+    def _resolve_safe_path(self, filename: str) -> Path:
+        """Routes files according to extension: .json -> json_root, .md -> vault_root."""
+        if filename.lower().endswith(".json"):
+            return self._resolve_safe_json_path(filename)
+        return self._resolve_safe_md_path(filename)
 
     def _atomic_write(self, target_path: Path, content: str) -> None:
         """Writes content to a temporary file and atomically renames it to target_path."""
@@ -53,7 +74,7 @@ class ObsidianVaultAdapter(VaultStorageProtocol):
         if ".." in safe_session or "/" in safe_session or "\\" in safe_session:
             raise PathTraversalSecurityError(report.session_id)
 
-        md_filename = f"Audit_{safe_session}.md"
+        md_filename = f"01_BaoCao_KiemDinh/Audit_{safe_session}.md"
         json_filename = f"Audit_{safe_session}.json"
 
         md_path = self._resolve_safe_path(md_filename)
@@ -87,18 +108,36 @@ class ObsidianVaultAdapter(VaultStorageProtocol):
             return json.load(f)
 
     def _render_markdown(self, report: AuditReport) -> str:
+        from backend.src.infrastructure.minimalist_formatter import format_param_value
+
         material_tag = f"material/{report.material.lower()}"
         churn_tag = "churn/high-hesitation" if report.high_churn_parameters else "churn/normal"
         tags_yaml = "\n  - ".join(["printsim/audit", "corexy/telemetry", material_tag, churn_tag])
 
-        # Build Table rows
+        # Gộp toàn bộ 30 tham số của 5 tab và đùn nhựa vào 1 BẢNG DUY NHẤT
+        tab_icons = {
+            "Cơ Bản": "🟢",
+            "Vách & Vỏ": "🟡",
+            "Support": "🌲",
+            "Tốc Độ": "⚡",
+            "Nhiệt Độ": "🔥",
+            "Đùn Nhựa": "💧",
+        }
+
         table_rows = []
         for m in report.metrics:
-            history_str = " ➔ ".join(str(v) for v in m.change_history) if m.change_history else str(m.final_value)
+            tab = getattr(m, "tab_name", "Cơ Bản") or "Cơ Bản"
+            icon = tab_icons.get(tab, "📌")
+            p_label = getattr(m, "label", "") or m.parameter_name
+            formatted_init = format_param_value(m.parameter_name, m.initial_value)
+            formatted_final = format_param_value(m.parameter_name, m.final_value)
+            hist_formatted = " ➔ ".join(format_param_value(m.parameter_name, v) for v in m.change_history) if m.change_history else formatted_final
+
             table_rows.append(
-                f"| `{m.parameter_name}` | {m.mutation_count} | **{m.churn_severity}** | `{m.initial_value}` | `{m.final_value}` | {history_str} |"
+                f"| {icon} {tab} | `{m.parameter_name}` | {p_label} | {m.mutation_count} | **{m.churn_severity}** | `{formatted_init}` | `{formatted_final}` | {hist_formatted} |"
             )
-        metrics_table = "\n".join(table_rows) if table_rows else "| *Không có thông số* | - | - | - | - | - |"
+
+        metrics_table = "\n".join(table_rows) if table_rows else "| - | *Không có thông số* | - | - | - | - | - | - |"
 
         ai_section = ""
         if report.ai_insight:
@@ -113,6 +152,7 @@ class ObsidianVaultAdapter(VaultStorageProtocol):
 session_id: {report.session_id}
 created_at: {report.created_at.isoformat()}
 total_events: {report.total_events}
+total_parameters: {len(report.metrics)}
 high_churn_count: {len(report.high_churn_parameters)}
 material: {report.material}
 tags:
@@ -122,10 +162,12 @@ tags:
 # 🖨️ Audit Report: [[Session_{report.session_id}]]
 
 > **MOC:** [[000_PRINT_INDEX]]  
+> **Thư mục lưu:** `01_BaoCao_KiemDinh/`  
 > **Tags:** #printsim/audit #corexy/telemetry #{material_tag} #{churn_tag}  
 > **Thời gian tạo:** `{report.created_at.isoformat()}`  
 > **Vật liệu in:** `{report.material}`  
 > **Tổng số đột biến tham số:** `{report.total_events}`  
+> **Tổng số tham số giám sát:** `{len(report.metrics)}`  
 > **Tham số phân vân cao (>= 3 lần đổi):** `{", ".join(report.high_churn_parameters) if report.high_churn_parameters else "Không phát hiện"}`
 
 ---
@@ -145,25 +187,33 @@ SORT mutation_count DESC
 
 ---
 
-## 🔬 Chi Tiết Biến Đổi Tham Số (Parameter Metrics)
-| Tham số | Số lần đổi | Đánh giá | Ban đầu | Cuối cùng | Lịch sử biến đổi |
-| :--- | :---: | :---: | :---: | :---: | :--- |
+## 🔬 Bảng Tổng Hợp Chi Tiết Toàn Bộ 30 Tham Số Cắt Lớp (Unified Parameter Metrics)
+
+| Nhóm / Tab | Tham số | Tên mô tả | Số lần đổi | Đánh giá | Ban đầu | Cuối cùng | Lịch sử biến đổi |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
 {metrics_table}
 """
 
     def _render_json(self, report: AuditReport) -> str:
+        from backend.src.infrastructure.minimalist_formatter import format_param_value
+
         mutation_history: Dict[str, list] = {}
         metrics_data = []
 
         for m in report.metrics:
             mutation_history[m.parameter_name] = m.change_history
             metrics_data.append({
+                "tab_name": getattr(m, "tab_name", "Cơ Bản"),
                 "parameter_name": m.parameter_name,
+                "label": getattr(m, "label", m.parameter_name),
+                "unit": getattr(m, "unit", ""),
                 "mutation_count": m.mutation_count,
                 "is_high_churn": m.is_high_churn,
                 "churn_severity": m.churn_severity,
                 "initial_value": m.initial_value,
                 "final_value": m.final_value,
+                "formatted_initial": format_param_value(m.parameter_name, m.initial_value),
+                "formatted_final": format_param_value(m.parameter_name, m.final_value),
                 "change_history": m.change_history,
             })
 
@@ -189,17 +239,38 @@ SORT mutation_count DESC
         """Maintains the 000_PRINT_INDEX.md Map of Content linking all sessions for Obsidian Graph View."""
         moc_path = self._resolve_safe_path("000_PRINT_INDEX.md")
 
-        # Scan all existing audit markdown files in vault_root
+        # Scan all existing audit markdown files in 01_BaoCao_KiemDinh
+        audit_folder = self._vault_root / "01_BaoCao_KiemDinh"
+        audit_files = list(audit_folder.glob("Audit_*.md")) if audit_folder.exists() else []
+        if not audit_files:
+            audit_files = list(self._vault_root.glob("**/Audit_*.md"))
         existing_audits = sorted(
-            [f.stem.replace("Audit_", "") for f in self._vault_root.glob("Audit_*.md")],
+            [f.stem.replace("Audit_", "") for f in audit_files],
             reverse=True,
         )
         if latest_report.session_id not in existing_audits:
             existing_audits.insert(0, latest_report.session_id)
 
-        links_section = "\n".join(
-            [f"- [[Audit_{sid}]] — Phiên in `{sid}`" for sid in existing_audits]
-        )
+        session_table_rows = []
+        for sid in existing_audits:
+            audit_file = audit_folder / f"Audit_{sid}.md"
+            created_str = "-"
+            mat_str = "PLA"
+            if audit_file.exists():
+                try:
+                    with open(audit_file, "r", encoding="utf-8") as f:
+                        lines = [f.readline() for _ in range(12)]
+                        for ln in lines:
+                            if ln.startswith("created_at:"):
+                                created_str = ln.replace("created_at:", "").strip()[:16].replace("T", " ")
+                            elif ln.startswith("material:"):
+                                mat_str = ln.replace("material:", "").strip()
+                except Exception:
+                    pass
+            session_table_rows.append(
+                f"| `{sid}` | [[Audit_{sid}|Báo Cáo Phiên {sid}]] | `{created_str}` | `{mat_str}` | `01_BaoCao_KiemDinh/` | `JsonLogs/` |"
+            )
+        session_table = "\n".join(session_table_rows)
 
         moc_content = f"""---
 type: moc
@@ -217,14 +288,22 @@ tags:
 ## 📈 Truy Vấn Obsidian Dataview Toàn Bộ Phiên In
 ```dataview
 TABLE created_at as "Thời gian", material as "Vật liệu", total_events as "Sự kiện", high_churn_count as "Độ phân vân"
-FROM #printsim/audit
+FROM "01_BaoCao_KiemDinh" OR #printsim/audit
 SORT file.mtime DESC
 ```
 
 ---
 
-## 🗂️ Danh Sách Báo Cáo Kiểm Định (Session Wikilinks)
-{links_section}
+## 🗂️ Bảng Tổng Hợp Điều Hướng Các Phiên In (Sessions Matrix)
+
+| Phiên in | Báo cáo kiểm định | Thời gian tạo | Vật liệu | Thư mục MD | Thư mục JSON |
+| :---: | :--- | :---: | :---: | :--- | :--- |
+{session_table}
+
+---
+
+## 📓 Nhật Ký In Khóa Chuẩn (02_NhatKy_In)
+- [[nhat_ky_in|Nhật Ký In Tổng Hợp]] (`02_NhatKy_In/nhat_ky_in.md`)
 
 ---
 *Tự động đồng bộ bởi 3D PrintSim Telemetry Engine.*
@@ -234,9 +313,10 @@ SORT file.mtime DESC
     def _update_minimalist_logs(self, report: AuditReport) -> None:
         """Updates nhat_ky_in.json and nhat_ky_in.md conforming strictly to the user's locked schemas."""
         json_log_path = self._resolve_safe_path("nhat_ky_in.json")
-        md_log_path = self._resolve_safe_path("nhat_ky_in.md")
+        md_log_path = self._resolve_safe_path("02_NhatKy_In/nhat_ky_in.md")
 
         from backend.src.infrastructure.minimalist_formatter import (
+            build_parameter_session_matrix,
             build_session_entry,
             render_markdown_log,
         )
@@ -245,7 +325,11 @@ SORT file.mtime DESC
         if json_log_path.exists():
             try:
                 with open(json_log_path, "r", encoding="utf-8") as f:
-                    entries = json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        entries = data
+                    elif isinstance(data, dict):
+                        entries = data.get("chi_tiet_tung_phien", [])
             except Exception:
                 entries = []
 
@@ -282,9 +366,19 @@ SORT file.mtime DESC
 
         entries.append(new_entry)
 
-        # 1. Write nhat_ky_in.json (Locked Schema 1.1)
-        self._atomic_write(json_log_path, json.dumps(entries, indent=2, ensure_ascii=False))
+        # 1. Write nhat_ky_in.json (Consolidated Matrix JSON)
+        session_cols, json_matrix_rows, _ = build_parameter_session_matrix(entries)
+        matrix_payload = {
+            "schema_version": "v2026.1",
+            "kieu_trinh_bay": "bang_hop_nhat_phan_lop",
+            "tong_so_phien": len(entries),
+            "danh_sach_phien": session_cols,
+            "bang_tong_hop": json_matrix_rows,
+            "ma_tran_tham_so": json_matrix_rows,
+            "chi_tiet_tung_phien": entries,
+        }
+        self._atomic_write(json_log_path, json.dumps(matrix_payload, indent=2, ensure_ascii=False))
 
-        # 2. Write nhat_ky_in.md (Locked Schema 1.2)
+        # 2. Write nhat_ky_in.md (Single Matrix Table Layout)
         md_log = render_markdown_log(entries)
         self._atomic_write(md_log_path, md_log)

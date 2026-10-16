@@ -26,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.src.infrastructure.config import settings
 from backend.src.infrastructure.gemini_ai import GeminiAIService
 from backend.src.presentation.schemas import (
+    AuditGenerateRequest,
     AuditGenerateResponse,
     TelemetryEventRequest,
     TelemetryEventResponse,
@@ -40,7 +41,7 @@ def create_app(
 ) -> FastAPI:
     """Application factory for FastAPI Telemetry & Audit Service."""
     active_repo = repo or SQLiteTelemetryRepository(db_path=settings.db_path)
-    active_vault = vault or ObsidianVaultAdapter(vault_root=settings.vault_root)
+    active_vault = vault or ObsidianVaultAdapter(vault_root=settings.vault_root, json_root=settings.json_root)
     active_time = time_provider or SystemTimeProvider()
     active_ai = ai_service or GeminiAIService()
     churn_calc = CalculateParameterChurnUseCase()
@@ -103,11 +104,17 @@ def create_app(
         status_code=status.HTTP_200_OK,
         tags=["Audit"],
     )
-    async def generate_audit(session_id: str = Path(..., min_length=1)):
+    async def generate_audit(
+        session_id: str = Path(..., min_length=1),
+        payload: Optional[AuditGenerateRequest] = None,
+    ):
         if ".." in session_id or "/" in session_id or "\\" in session_id:
             from backend.src.domain.exceptions import PathTraversalSecurityError
             raise PathTraversalSecurityError(session_id)
-        input_dto = GenerateDualAuditInput(session_id=session_id)
+        input_dto = GenerateDualAuditInput(
+            session_id=session_id,
+            profile_snapshot=payload.profile if payload else None,
+        )
         result = audit_use_case.execute(input_dto)
         return AuditGenerateResponse(
             session_id=result.session_id,
@@ -155,7 +162,9 @@ def create_app(
     async def get_nhat_ky_markdown():
         """Returns the minimalist nhat_ky_in.md content according to the locked schema contract."""
         from fastapi.responses import PlainTextResponse
-        md_path = active_vault._resolve_safe_path("nhat_ky_in.md")
+        md_path = active_vault._resolve_safe_path("02_NhatKy_In/nhat_ky_in.md")
+        if not md_path.exists():
+            md_path = active_vault._resolve_safe_path("nhat_ky_in.md")
         if not md_path.exists():
             return PlainTextResponse("", status_code=status.HTTP_200_OK)
         with open(md_path, "r", encoding="utf-8") as f:

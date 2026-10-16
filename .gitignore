@@ -45,5 +45,7 @@ test_output/
 .env
 .env.*
 ObsidianVault/
+JsonLogs/
 PROJECT_STATUS_AND_PLANNING_REPORT.md
+
 

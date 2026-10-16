@@ -77,12 +77,16 @@ export interface IAuditResponse {
 /**
  * Kích hoạt sinh báo cáo kép Obsidian Vault (.md & .json) kèm phân tích AI Gemini
  */
-export async function triggerAuditGeneration(sessionId?: string): Promise<IAuditResponse | null> {
+export async function triggerAuditGeneration(
+  sessionId?: string,
+  profile?: any
+): Promise<IAuditResponse | null> {
   const targetId = sessionId || activeSessionId;
   try {
     const res = await fetch(`${BACKEND_BASE_URL}/api/v1/sessions/${encodeURIComponent(targetId)}/audit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: profile || null }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();

@@ -20,6 +20,7 @@ interface PreflightReportModalProps {
   report: IPreflightReport;
   onApplyFix: (action: Partial<ISimulationProfile>) => void;
   onStartSimulation: () => void;
+  profile?: ISimulationProfile;
 }
 
 export function PreflightReportModal({
@@ -28,6 +29,7 @@ export function PreflightReportModal({
   report,
   onApplyFix,
   onStartSimulation,
+  profile,
 }: PreflightReportModalProps) {
   const [exportingVault, setExportingVault] = useState<boolean>(false);
   const [vaultMessage, setVaultMessage] = useState<string | null>(null);
@@ -203,7 +205,7 @@ export function PreflightReportModal({
               onClick={async () => {
                 setExportingVault(true);
                 setVaultMessage(null);
-                const res = await triggerAuditGeneration();
+                const res = await triggerAuditGeneration(undefined, profile);
                 setExportingVault(false);
                 if (res) {
                   setVaultMessage(`✅ Đã lưu Obsidian: ${res.markdown_path.split('\\').pop()}`);
@@ -241,7 +243,7 @@ export function PreflightReportModal({
             </a>
 
             <a
-              href="obsidian://open?path=D%3A%5CCheems%5Cnew%5C3D_Sim_QC%5CObsidianVault%5Cnhat_ky_in.md"
+              href="obsidian://open?path=D%3A%5CCheems%5Cnew%5C3D_Sim_QC%5CObsidianVault%5C02_NhatKy_In%5Cnhat_ky_in.md"
               className="px-3 py-2 rounded-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-400/40 text-xs font-bold transition-all flex items-center gap-1 shadow-sm hover:scale-105"
               title="Mở trực tiếp tệp nhat_ky_in.md trong ứng dụng Obsidian Desktop"
             >

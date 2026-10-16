@@ -62,21 +62,78 @@ class RecordTelemetryEventUseCase:
 
 
 class CalculateParameterChurnUseCase:
-    """Use Case: Computes mutation count per parameter and detects hesitation churn."""
+    """Use Case: Computes mutation count per parameter, covers all 5 tabs (+ extrusion), and detects hesitation churn."""
 
-    def execute(self, events: List[TelemetryEvent]) -> List[ParameterMetric]:
+    def execute(
+        self,
+        events: List[TelemetryEvent],
+        profile_snapshot: Optional[Dict[str, Any]] = None,
+    ) -> List[ParameterMetric]:
+        from backend.src.infrastructure.minimalist_formatter import ALL_PARAM_SPECS
+
         grouped: Dict[str, List[TelemetryEvent]] = {}
         for ev in events:
             grouped.setdefault(ev.parameter_name, []).append(ev)
 
         metrics: List[ParameterMetric] = []
+        processed_keys = set()
+
+        # 1. Iterate through all predefined parameter specs in order (covers all 5 tabs + extrusion)
+        for param_name, spec in ALL_PARAM_SPECS.items():
+            processed_keys.add(param_name)
+            tab_name = spec.get("tab_name", "Cơ Bản")
+            label = spec.get("label", param_name)
+            unit = spec.get("unit", "")
+            default_val = spec.get("default")
+
+            if param_name in grouped:
+                # Chronological mutation history
+                sorted_events = sorted(grouped[param_name], key=lambda e: e.timestamp)
+                mutation_count = len(sorted_events)
+                initial_value = sorted_events[0].old_value
+                final_value = sorted_events[-1].new_value
+                history = [sorted_events[0].old_value]
+                for e in sorted_events:
+                    history.append(e.new_value)
+
+                metric = ParameterMetric(
+                    parameter_name=param_name,
+                    mutation_count=mutation_count,
+                    initial_value=initial_value,
+                    final_value=final_value,
+                    change_history=history,
+                    tab_name=tab_name,
+                    label=label,
+                    unit=unit,
+                )
+            else:
+                # Parameter was not mutated in this session; retrieve from profile snapshot or default
+                current_val = default_val
+                if profile_snapshot and param_name in profile_snapshot:
+                    current_val = profile_snapshot[param_name]
+                elif param_name == "preset" and profile_snapshot and "id" in profile_snapshot:
+                    current_val = profile_snapshot["id"]
+
+                metric = ParameterMetric(
+                    parameter_name=param_name,
+                    mutation_count=0,
+                    initial_value=current_val,
+                    final_value=current_val,
+                    change_history=[current_val] if current_val is not None else [],
+                    tab_name=tab_name,
+                    label=label,
+                    unit=unit,
+                )
+            metrics.append(metric)
+
+        # 2. Append any custom parameters that were recorded but not in ALL_PARAM_SPECS
         for param_name, param_events in grouped.items():
-            # Sort chronologically by timestamp
+            if param_name in processed_keys:
+                continue
             sorted_events = sorted(param_events, key=lambda e: e.timestamp)
             mutation_count = len(sorted_events)
             initial_value = sorted_events[0].old_value
             final_value = sorted_events[-1].new_value
-
             history = [sorted_events[0].old_value]
             for e in sorted_events:
                 history.append(e.new_value)
@@ -87,6 +144,9 @@ class CalculateParameterChurnUseCase:
                 initial_value=initial_value,
                 final_value=final_value,
                 change_history=history,
+                tab_name="Khác",
+                label=param_name,
+                unit="",
             )
             metrics.append(metric)
 
@@ -119,15 +179,18 @@ class GenerateDualAuditUseCase:
         if not events:
             raise SessionNotFoundError(session_id)
 
-        metrics = self._churn_calculator.execute(events)
+        metrics = self._churn_calculator.execute(events, input_dto.profile_snapshot)
         high_churn_params = [m.parameter_name for m in metrics if m.is_high_churn]
 
-        # Extract material from event metadata if present
+        # Extract material from profile snapshot or event metadata
         material = "PLA"
-        for ev in events:
-            if ev.metadata and "material" in ev.metadata:
-                material = str(ev.metadata["material"])
-                break
+        if input_dto.profile_snapshot and "material" in input_dto.profile_snapshot:
+            material = str(input_dto.profile_snapshot["material"])
+        else:
+            for ev in events:
+                if ev.metadata and "material" in ev.metadata:
+                    material = str(ev.metadata["material"])
+                    break
 
         ai_insight = None
         if self._ai_service and hasattr(self._ai_service, "generate_insight"):

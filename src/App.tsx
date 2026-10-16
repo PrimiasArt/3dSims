@@ -669,6 +669,7 @@ export default function App() {
         onStartSimulation={() => {
           setSimulationState((prev) => ({ ...prev, isPlaying: true, isCompleted: false }));
         }}
+        profile={profile}
       />
 
       {/* 5.1. Live Telemetry & Locked Report Parameters Inspector Modal */}

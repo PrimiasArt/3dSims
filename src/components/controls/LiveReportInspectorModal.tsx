@@ -322,7 +322,7 @@ export function LiveReportInspectorModal({
                   </span>
                   <div className="flex items-center gap-2">
                     <a
-                      href="obsidian://open?path=D%3A%5CCheems%5Cnew%5C3D_Sim_QC%5CObsidianVault%5Cnhat_ky_in.md"
+                      href="obsidian://open?path=D%3A%5CCheems%5Cnew%5C3D_Sim_QC%5CObsidianVault%5C02_NhatKy_In%5Cnhat_ky_in.md"
                       className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-400/40 hover:bg-purple-500/30 flex items-center gap-1 font-bold"
                       title="Mở trực tiếp tệp nhat_ky_in.md trong Obsidian Desktop"
                     >
