@@ -41,7 +41,7 @@ class SupabaseSyncService:
         """Attempts to initialize official Supabase client if credentials exist."""
         if self.url and self.key:
             try:
-                from supabase import create_client
+                from supabase import create_client  # type: ignore
                 self._client = create_client(self.url, self.key)
                 logger.info(f"Supabase client initialized for {self.url}")
             except Exception as e:
