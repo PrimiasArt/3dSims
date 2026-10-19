@@ -1,3 +1,18 @@
+import json
+import asyncio
+import random
+from fastapi import WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, StreamingResponse
+from backend.src.domain.printer_profiles import get_all_printer_profiles, get_printer_profile, PrinterHardwareSpecs
+from backend.src.domain.defect_predictor import DefectPredictor, DefectPredictionReport
+from backend.src.domain.auto_tuner import AutoTuner, AutoTuningResult
+from backend.src.infrastructure.qc_certificate_service import QCCertificateService
+from backend.src.presentation.schemas import (
+    DefectPredictionRequest,
+    AutoTuneRequest,
+    QCCertificateRequest,
+)
+
 """
 FastAPI Presentation Layer for Telemetry Ingestion & Audit Engine.
 Uses Pydantic v2 schemas and RFC 9457 error handlers.
@@ -883,7 +898,202 @@ SORT file.mtime DESC
             status_code=status.HTTP_200_OK,
         )
 
+
+    # -------------------------------------------------------------
+    # WEBSOCKET & SSE TELEMETRY STREAMING (Update 2)
+    # -------------------------------------------------------------
+    class TelemetryStreamManager:
+        def __init__(self):
+            self.active_websockets: list[WebSocket] = []
+
+        async def connect(self, ws: WebSocket):
+            await ws.accept()
+            self.active_websockets.append(ws)
+
+        def disconnect(self, ws: WebSocket):
+            if ws in self.active_websockets:
+                self.active_websockets.remove(ws)
+
+        async def broadcast(self, message: dict):
+            for ws in list(self.active_websockets):
+                try:
+                    await ws.send_json(message)
+                except Exception:
+                    self.disconnect(ws)
+
+    telemetry_stream_mgr = TelemetryStreamManager()
+
+    @app.websocket("/ws/telemetry")
+    async def websocket_telemetry_endpoint(websocket: WebSocket):
+        await telemetry_stream_mgr.connect(websocket)
+        try:
+            while True:
+                data = await websocket.receive_json()
+                await telemetry_stream_mgr.broadcast({
+                    "event": "TELEMETRY_FRAME",
+                    "payload": data,
+                    "server_time": time_provider.iso_utc_now()
+                })
+        except WebSocketDisconnect:
+            telemetry_stream_mgr.disconnect(websocket)
+        except Exception:
+            telemetry_stream_mgr.disconnect(websocket)
+
+    @app.get(
+        "/api/v1/telemetry/stream",
+        tags=["Telemetry Stream"],
+    )
+    async def sse_telemetry_stream(
+        session_id: Optional[str] = Query(default=None, description="Mã phiên in"),
+        target_temp: float = Query(default=215.0, description="Nhiệt độ nozzle mục tiêu"),
+        bed_temp: float = Query(default=60.0, description="Nhiệt độ bàn mục tiêu"),
+    ):
+        async def event_generator():
+            layer = 1
+            z_height = 0.2
+            progress = 0.0
+            while True:
+                cur_nozzle = round(target_temp + random.uniform(-0.6, 0.6), 2)
+                cur_bed = round(bed_temp + random.uniform(-0.3, 0.3), 2)
+                cur_fan = random.randint(2450, 2550)
+                cur_flow = round(12.5 + random.uniform(-1.2, 1.2), 2)
+                progress = min(100.0, round(progress + 0.5, 1))
+                if progress >= 100.0:
+                    progress = 0.0
+                    layer = 1
+                elif random.random() < 0.15:
+                    layer += 1
+                    z_height = round(z_height + 0.2, 2)
+
+                frame = {
+                    "session_id": session_id or "LIVE_SIM",
+                    "timestamp": time_provider.iso_utc_now(),
+                    "nozzle_temp": cur_nozzle,
+                    "target_nozzle_temp": target_temp,
+                    "bed_temp": cur_bed,
+                    "target_bed_temp": bed_temp,
+                    "fan_rpm": cur_fan,
+                    "flow_rate_mm3s": cur_flow,
+                    "current_layer": layer,
+                    "z_height_mm": z_height,
+                    "progress_percent": progress,
+                    "status": "PRINTING" if progress < 100 else "COMPLETED"
+                }
+                yield f"data: {json.dumps(frame)}\n\n"
+                await asyncio.sleep(0.5)
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    # -------------------------------------------------------------
+    # MULTI-PRINTER PROFILES (Update 4)
+    # -------------------------------------------------------------
+    @app.get(
+        "/api/v1/printers/profiles",
+        tags=["Printer Hardware Profiles"],
+    )
+    async def list_printer_profiles():
+        profiles = get_all_printer_profiles()
+        return JSONResponse(
+            content=[p.model_dump() for p in profiles],
+            status_code=status.HTTP_200_OK,
+        )
+
+    @app.get(
+        "/api/v1/printers/profiles/{printer_id}",
+        tags=["Printer Hardware Profiles"],
+    )
+    async def get_single_printer_profile(printer_id: str):
+        profile = get_printer_profile(printer_id)
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Printer profile '{printer_id}' không tồn tại.",
+            )
+        return JSONResponse(
+            content=profile.model_dump(),
+            status_code=status.HTTP_200_OK,
+        )
+
+    # -------------------------------------------------------------
+    # AI DEFECT PREDICTION & RISK HEATMAP (Update 1)
+    # -------------------------------------------------------------
+    @app.post(
+        "/api/v1/physics/defect-prediction",
+        tags=["Physics & QC Engine"],
+    )
+    async def predict_print_defects(payload: DefectPredictionRequest):
+        report = DefectPredictor.predict(
+            profile=payload.profile,
+            printer_id=payload.printer_id,
+        )
+        return JSONResponse(
+            content=report.model_dump(),
+            status_code=status.HTTP_200_OK,
+        )
+
+    # -------------------------------------------------------------
+    # AUTO-REMEDIATION & SMART PARAMETER TUNING (Update 3)
+    # -------------------------------------------------------------
+    @app.post(
+        "/api/v1/physics/auto-tune",
+        tags=["Physics & QC Engine"],
+    )
+    async def auto_tune_parameters(payload: AutoTuneRequest):
+        result = AutoTuner.tune_profile(
+            profile=payload.profile,
+            printer_id=payload.printer_id,
+        )
+        return JSONResponse(
+            content=result.model_dump(),
+            status_code=status.HTTP_200_OK,
+        )
+
+    # -------------------------------------------------------------
+    # EXECUTIVE QC CERTIFICATE & STANDALONE HTML (Update 6)
+    # -------------------------------------------------------------
+    @app.get(
+        "/api/v1/sessions/{session_id:path}/certificate",
+        tags=["Quality Certificates"],
+    )
+    async def get_qc_certificate_html(
+        session_id: str,
+        printer_id: Optional[str] = Query(default=None, description="Mã máy in mục tiêu"),
+    ):
+        clean_id = session_id.replace("Audit_", "")
+        audit_data = {}
+        try:
+            audit_data = active_vault.get_audit_json(clean_id) or active_vault.get_audit_json(session_id) or {}
+        except Exception:
+            audit_data = {}
+
+        profile_data = audit_data.get("parameters") or audit_data.get("profile") or {}
+
+        html_content = QCCertificateService.generate_html(
+            session_id=session_id,
+            profile=profile_data if isinstance(profile_data, dict) else {},
+            audit_data=audit_data,
+            printer_id=printer_id,
+        )
+        return HTMLResponse(content=html_content, status_code=status.HTTP_200_OK)
+
+    @app.post(
+        "/api/v1/sessions/{session_id:path}/certificate",
+        tags=["Quality Certificates"],
+    )
+    async def generate_qc_certificate_post(
+        session_id: str,
+        payload: QCCertificateRequest,
+    ):
+        html_content = QCCertificateService.generate_html(
+            session_id=session_id,
+            profile=payload.profile,
+            audit_data=payload.audit_data,
+            printer_id=payload.printer_id,
+        )
+        return HTMLResponse(content=html_content, status_code=status.HTTP_200_OK)
+
     return app
+
 
 
 

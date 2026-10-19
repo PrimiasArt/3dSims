@@ -1,4 +1,4 @@
-# Logs
+﻿# Logs
 logs
 *.log
 npm-debug.log*
@@ -33,6 +33,8 @@ test_model.*
 
 # Python, Database & Test Artifacts
 __pycache__/
+.pycache/
+**/.pycache/
 *.py[cod]
 *$py.class
 .pytest_cache/

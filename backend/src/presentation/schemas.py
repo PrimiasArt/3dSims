@@ -255,3 +255,31 @@ class SupabaseHubStatusResponse(BaseModel):
     last_sync_result: Optional[Dict[str, Any]] = Field(default=None, description="Chi tiết kết quả lần đồng bộ gần nhất")
     local_sessions_count: int = Field(default=0, description="Tổng số phiên in sẵn sàng ở máy cục bộ")
     local_profiles_count: int = Field(default=0, description="Tổng số hồ sơ 3D sẵn sàng ở máy cục bộ")
+
+# ==============================================================================
+# 🔮 ADVANCED AI DEFECTS, AUTO-TUNING & PRINTER PROFILES SCHEMAS
+# ==============================================================================
+
+class DefectPredictionRequest(BaseModel):
+    """Yêu cầu dự đoán nguy cơ khuyết tật in FDM."""
+    model_config = ConfigDict(extra="ignore")
+
+    profile: Dict[str, Any] = Field(..., description="Snapshot thông số slicer hiện tại")
+    printer_id: Optional[str] = Field(default=None, description="ID máy in mục tiêu (e.g. bambu_x1c, prusa_mk4, voron_2_4)")
+
+
+class AutoTuneRequest(BaseModel):
+    """Yêu cầu tự động điều chỉnh và tối ưu hóa thông số in."""
+    model_config = ConfigDict(extra="ignore")
+
+    profile: Dict[str, Any] = Field(..., description="Snapshot thông số slicer cần tối ưu")
+    printer_id: Optional[str] = Field(default=None, description="ID máy in mục tiêu để lấy giới hạn phần cứng")
+
+
+class QCCertificateRequest(BaseModel):
+    """Yêu cầu tạo chứng chỉ nghiệm thu kỹ thuật QC Certificate."""
+    model_config = ConfigDict(extra="ignore")
+
+    profile: Dict[str, Any] = Field(..., description="Thông số slicer của phiên in")
+    audit_data: Optional[Dict[str, Any]] = Field(default=None, description="Kết quả audit/QC điểm số nếu có")
+    printer_id: Optional[str] = Field(default=None, description="ID máy in thực thi")
