@@ -41,6 +41,8 @@ import { TimeScrubber } from '@/components/controls/TimeScrubber';
 import { ProfileSettingsPanel } from '@/components/controls/ProfileSettingsPanel';
 import { PreflightReportModal } from '@/components/controls/PreflightReportModal';
 import { LiveReportInspectorModal } from '@/components/controls/LiveReportInspectorModal';
+import { SupabaseHubModal } from '@/components/controls/SupabaseHubModal';
+import { fetchSupabaseStatus } from '@/services/telemetryService';
 import { ExportProfileModal } from '@/components/controls/ExportProfileModal';
 import { SimulatorHeader } from '@/components/header/SimulatorHeader';
 import { EngineComparisonModal } from '@/components/controls/EngineComparisonModal';
@@ -98,6 +100,9 @@ export default function App() {
   const [isGeminiKeyModalOpen, setIsGeminiKeyModalOpen] = useState<boolean>(false);
   const [isLocalSlicerModalOpen, setIsLocalSlicerModalOpen] = useState<boolean>(false);
   const [isLiveInspectorOpen, setIsLiveInspectorOpen] = useState<boolean>(false);
+  const [isSupabaseHubOpen, setIsSupabaseHubOpen] = useState<boolean>(false);
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(false);
+  const [selectedReportLogId, setSelectedReportLogId] = useState<string | null>(null);
   const [isModelLibraryOpen, setIsModelLibraryOpen] = useState<boolean>(false);
   const [isAI3DModalOpen, setIsAI3DModalOpen] = useState<boolean>(false);
   const [hasGeminiKey, setHasGeminiKey] = useState<boolean>(() => {
@@ -681,6 +686,8 @@ export default function App() {
         onOpenLocalSlicerModal={() => setIsLocalSlicerModalOpen(true)}
         onOpenModelLibrary={() => setIsModelLibraryOpen(true)}
         onOpenLiveInspectorModal={() => setIsLiveInspectorOpen(true)}
+        onOpenSupabaseHub={() => setIsSupabaseHubOpen(true)}
+        isSupabaseConnected={isSupabaseConnected}
         onOpenAI3DModal={() => setIsAI3DModalOpen(true)}
         theme={theme}
         onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
@@ -760,6 +767,10 @@ export default function App() {
           recordSimulationLog('Khôi phục Log', savedProfile);
         }}
         onClearLogs={() => setSimulationLogs((prev) => (prev.length > 0 ? [prev[0]] : []))}
+        onOpenReportWithLog={(logId) => {
+          setSelectedReportLogId(logId || null);
+          setIsLiveInspectorOpen(true);
+        }}
       />
 
       {/* 4. Bottom Dock: Prepare Stage Action Bar OR Playback Timeline Scrubber */}
@@ -835,8 +846,24 @@ export default function App() {
       {/* 5.1. Live Telemetry & Locked Report Parameters Inspector Modal */}
       <LiveReportInspectorModal
         isOpen={isLiveInspectorOpen}
-        onClose={() => setIsLiveInspectorOpen(false)}
+        onClose={() => {
+          setIsLiveInspectorOpen(false);
+          setSelectedReportLogId(null);
+        }}
         currentProfile={profile}
+        simulationLogs={simulationLogs}
+        initialSelectedLogId={selectedReportLogId}
+        onRestoreProfile={(savedProfile) => {
+          setProfile(savedProfile);
+          recordSimulationLog('Nạp từ Report Live', savedProfile);
+        }}
+      />
+
+      {/* 5.2. Supabase Cloud Hub Modal */}
+      <SupabaseHubModal
+        isOpen={isSupabaseHubOpen}
+        onClose={() => setIsSupabaseHubOpen(false)}
+        onStatusChange={(connected) => setIsSupabaseConnected(connected)}
       />
 
       {/* 6. Export Slicer Profile & 3MF/STL Modal */}

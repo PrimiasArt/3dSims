@@ -3,7 +3,7 @@ Application Use Cases for Telemetry Ingestion & Audit Engine.
 Follows Clean Architecture strictly.
 """
 import uuid
-from typing import Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from backend.src.application.dtos import (
     GenerateDualAuditInput,

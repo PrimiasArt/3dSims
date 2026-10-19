@@ -180,10 +180,13 @@ def convert_entry_to_print_log_session(entry: Dict[str, Any]) -> Dict[str, Any]:
     """
     Converts an existing session entry strictly to the PrintLogSession schema contract.
     """
-    p_str = entry.get("phien", "01")
-    user = entry.get("nguoi_dung", "Nguyễn Văn A")
-    parent = entry.get("thu_lai_tu_phien")
-    time_raw = entry.get("thoi_gian", "2026-10-15 08:47 (7 phút)")
+    if "sessionId" in entry and "slicer" in entry:
+        return entry
+
+    p_str = entry.get("sessionId") or entry.get("phien", "01")
+    user = entry.get("operator") or entry.get("nguoi_dung", "Nguyễn Văn A")
+    parent = entry.get("parentSessionId") or entry.get("thu_lai_tu_phien")
+    time_raw = entry.get("thoi_gian") or entry.get("startedAt", "2026-10-15 08:47 (7 phút)")
 
     duration = 7
     if "(" in time_raw and "phút" in time_raw:
@@ -349,49 +352,35 @@ def build_session_entry(
 
 
 def render_kpi_cards(sessions: List[Dict[str, Any]]) -> str:
-    """Renders the 4 top KPI Cards matching Image 1 without any leading space."""
+    """Renders native Obsidian KPI summary callout without any raw HTML."""
     total = len(sessions)
     completed = sum(1 for s in sessions if s.get("status") == "COMPLETED")
     warping = sum(1 for s in sessions if s.get("status") == "WARPING")
     rate = f"{(completed / total * 100):.1f}%" if total > 0 else "0.0%"
 
-    return f"""<div style="display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 0.85rem; margin: 1.25rem 0 1.5rem 0;">
-<div style="border: 1px solid var(--table-border-color, #cbd5e1); border-radius: 8px; padding: 0.85rem 1rem; text-align: center; background: var(--background-secondary, #f8fafc); box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-<div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted, #64748b); text-transform: uppercase; letter-spacing: 0.05em;">TỔNG SỐ PHIÊN IN</div>
-<div style="font-size: 1.85rem; font-weight: 900; color: var(--text-normal, #0f172a); margin-top: 0.25rem;">{total}</div>
-</div>
-<div style="border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 0.85rem 1rem; text-align: center; background: rgba(34, 197, 94, 0.12); box-shadow: 0 1px 3px rgba(34,197,94,0.06);">
-<div style="font-size: 0.75rem; font-weight: 700; color: #16a34a; text-transform: uppercase; letter-spacing: 0.05em;">HOÀN TẤT THÀNH CÔNG</div>
-<div style="font-size: 1.85rem; font-weight: 900; color: #16a34a; margin-top: 0.25rem;">{completed}</div>
-</div>
-<div style="border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; padding: 0.85rem 1rem; text-align: center; background: rgba(239, 68, 68, 0.12); box-shadow: 0 1px 3px rgba(239,68,68,0.06);">
-<div style="font-size: 0.75rem; font-weight: 700; color: #dc2626; text-transform: uppercase; letter-spacing: 0.05em;">SỐ CA LỖI WARPING</div>
-<div style="font-size: 1.85rem; font-weight: 900; color: #dc2626; margin-top: 0.25rem;">{warping}</div>
-</div>
-<div style="border: 1px solid rgba(14, 165, 233, 0.4); border-radius: 8px; padding: 0.85rem 1rem; text-align: center; background: rgba(14, 165, 233, 0.12); box-shadow: 0 1px 3px rgba(14,165,233,0.06);">
-<div style="font-size: 0.75rem; font-weight: 700; color: #0284c7; text-transform: uppercase; letter-spacing: 0.05em;">TỶ LỆ THÀNH CÔNG</div>
-<div style="font-size: 1.85rem; font-weight: 900; color: #0284c7; margin-top: 0.25rem;">{rate}</div>
-</div>
-</div>"""
+    return f"""> [!summary] 📊 BẢNG TỔNG HỢP CHỈ SỐ VẬN HÀNH (KPI SUMMARY)
+> 
+> | 📦 TỔNG SỐ PHIÊN IN | ✅ HOÀN TẤT THÀNH CÔNG | ⚠️ SỐ CA LỖI WARPING | 📈 TỶ LỆ THÀNH CÔNG |
+> | :---: | :---: | :---: | :---: |
+> | **{total}** | **{completed}** | **{warping}** | **{rate}** |"""
 
 
 def render_spreadsheet_table(sessions: List[Dict[str, Any]]) -> str:
     """
-    Renders the exact 17-column 2-Tier Master Table from User's Screenshots (Image 1 & Image 2):
-    - Tier 1: Royal Navy Category Header (colspan)
-    - Tier 2: Specific Sub-headers with balanced proportional min-widths
-    - Smooth horizontal scroll container with min-width 2380px preventing any text truncation
-    - Zero leading whitespace to guarantee flawless Obsidian Live Preview rendering
-    - Native internal links: <a class="internal-link" data-href="PHIEU_XX">
-    - Formatted values: Lớp, Ruột, Vách, Nóc/Đáy, Support, Tốc Độ, Nhiệt Bàn, Đầu in, Đùn/Rút/Hop
+    Renders the exact 17-column Master Table in 100% Native Obsidian GFM Markdown syntax.
+    Zero raw HTML tags so Obsidian Live Preview and Reading Mode render it seamlessly.
     """
-    rows_html = []
+    header = (
+        "| Mã Phiên | Phiên Gốc | Người Thực Hiện | Thời Gian (Thời Lượng) | Trạng Thái | Chi Tiết Lỗi / Ghi Chú | Độ Cao Lớp (mm) | Mật Độ Ruột | Thành Vách | Nóc / Đáy | Support & Góc | Tốc Độ F (mm/s) | Vách • Ruột (mm/s) | Nhiệt Bàn (°C) | Đầu In • Quạt | Đùn • Rút • Hop | Phiên Nối Tiếp |\n"
+        "| :---: | :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :---: |"
+    )
+    rows = []
     total = len(sessions)
 
     for i, s in enumerate(sessions):
         s_id = s.get("sessionId", f"{i+1:02d}")
         parent_id = s.get("parentSessionId")
-        op = s.get("operator", "Nguyễn Văn A")
+        op = s.get("operator", "Kỹ sư in 3D (CoreXY)")
         started = s.get("startedAt", "-").replace("2026-", "")
         duration = s.get("durationMinutes", 7)
         status = s.get("status", "COMPLETED")
@@ -400,6 +389,7 @@ def render_spreadsheet_table(sessions: List[Dict[str, Any]]) -> str:
         slicer = s.get("slicer", {})
         lh = slicer.get("layerHeightMm", 0.20)
         inf = slicer.get("infillPercent", 20)
+        inf_type = slicer.get("infillType", "Gyroid")
         wl = slicer.get("wallLoops", 2)
         tb = slicer.get("topBottomLayers", {"top": 4, "bottom": 3})
         sup = slicer.get("supportType", "None")
@@ -421,122 +411,69 @@ def render_spreadsheet_table(sessions: List[Dict[str, Any]]) -> str:
         ret = ext.get("retractionMm", 0.8)
         zh = ext.get("zHopMm", 0.4)
 
-        # Links
-        phien_link = f'<a class="internal-link" data-href="PHIEU_{s_id}" href="PHIEU_{s_id}" style="font-weight:700; color:var(--text-accent, #0284c7); text-decoration:none;">PHIEU_{s_id}</a>'
-        parent_link = f'<a class="internal-link" data-href="PHIEU_{parent_id}" href="PHIEU_{parent_id}" style="font-weight:600; color:var(--text-accent, #0284c7); text-decoration:none;">PHIEU_{parent_id}</a>' if parent_id else '<span style="color:var(--text-faint, #94a3b8);">—</span>'
+        # Links (Obsidian native wikilink with escaped pipe)
+        phien_link = f"[[PHIEU_{s_id}\\|PHIEU_{s_id}]]"
+        parent_link = f"[[PHIEU_{parent_id}\\|PHIEU_{parent_id}]]" if parent_id else "—"
 
-        # Status badge matching screenshots
+        # Status badge
         if status == "COMPLETED":
-            badge_html = '<span style="display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:0.22rem 0.6rem; border-radius:4px; font-weight:700; font-size:0.73rem; background:#dcfce7; color:#15803d; border:1px solid #86efac; white-space:nowrap;">✅ Hoàn tất</span>'
+            badge = "✅ Hoàn tất"
         elif status == "WARPING":
-            badge_html = '<span style="display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:0.22rem 0.6rem; border-radius:4px; font-weight:700; font-size:0.73rem; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; white-space:nowrap;">⚠️ Lỗi Warping</span>'
+            badge = "⚠️ Lỗi Warping"
         elif status == "FAILED":
-            badge_html = '<span style="display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:0.22rem 0.6rem; border-radius:4px; font-weight:700; font-size:0.73rem; background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; white-space:nowrap;">❌ Thất bại</span>'
+            badge = "❌ Thất bại"
         else:
-            badge_html = '<span style="display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:0.22rem 0.6rem; border-radius:4px; font-weight:700; font-size:0.73rem; background:#e0f2fe; color:#0284c7; border:1px solid #7dd3fc; white-space:nowrap;">🔄 Đang in</span>'
+            badge = "🔄 Đang in"
 
-        # Failure or Note description
-        if failure:
-            failure_cell = f'<span style="color:#b91c1c; font-weight:600;">{failure}</span>'
-        else:
-            failure_cell = '<span style="color:var(--text-faint, #94a3b8); font-style:italic;">—</span>'
+        failure_text = failure if failure else "—"
 
-        # Next link
         if i < total - 1:
             nxt_id = sessions[i + 1].get("sessionId", f"{i+2:02d}")
-            next_link = f'<a class="internal-link" data-href="PHIEU_{nxt_id}" href="PHIEU_{nxt_id}" style="font-weight:700; color:var(--text-accent, #0284c7); text-decoration:none;">PHIEU_{nxt_id}</a>'
+            next_link = f"[[PHIEU_{nxt_id}\\|PHIEU_{nxt_id}]]"
         else:
-            next_link = '<span style="color:var(--text-faint, #94a3b8); font-weight:500;">— (Mới nhất)</span>'
+            next_link = "— (Mới nhất)"
 
-        row_bg = "background: var(--background-primary, #ffffff);" if i % 2 == 0 else "background: var(--background-secondary-alt, #f8fafc);"
+        extrusion_summary = f"Dòng {flow:.2f} • Rút {ret}mm • Hop {zh}mm"
+        top_bot = f"{tb.get('top', 4)}/{tb.get('bottom', 3)}"
 
-        rows_html.append(f"""<tr style="{row_bg} border-bottom: 1px solid var(--table-border-color, #e2e8f0); font-size: 0.81rem; vertical-align: middle;">
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap;">{phien_link}</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap;">{parent_link}</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap;">{op}</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap; font-family: var(--font-monospace, monospace);">{started} ({duration}p)</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap;">{badge_html}</td>
-<td style="padding: 0.55rem 0.75rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: left; line-height: 1.45; word-break: break-word;">{failure_cell}</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap; font-family: var(--font-monospace, monospace); font-weight: 600;">{lh:.2f}</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap; font-family: var(--font-monospace, monospace); font-weight: 600;">{inf}%</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap;">{wl} vòng</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap; font-family: var(--font-monospace, monospace); font-weight: 600;">{tb.get('top', 4)}/{tb.get('bottom', 3)}</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap;">{sup} ({ang}°)</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap; font-family: var(--font-monospace, monospace); font-weight: 700; color: #1e40af;">{spd_def}</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap; font-family: var(--font-monospace, monospace);">{spd_wall} • {spd_inf}</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap; font-family: var(--font-monospace, monospace); font-weight: 700; color: #c2410c;">{bed_t}°C</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap; font-family: var(--font-monospace, monospace);">{noz_t}°C • {fan}%</td>
-<td style="padding: 0.55rem 0.65rem; border-right: 1px solid var(--table-border-color, #e2e8f0); text-align: center; white-space: nowrap;">
-<span style="background:var(--background-secondary, #f1f5f9); padding:0.2rem 0.55rem; border-radius:4px; border:1px solid var(--table-border-color, #cbd5e1); font-family:var(--font-monospace, monospace); font-size:0.75rem; font-weight:600; color:var(--text-normal, #1e293b);">Dòng {flow:.2f} | Rút {ret}mm | Hop {zh}mm</span>
-</td>
-<td style="padding: 0.55rem 0.65rem; text-align: center; white-space: nowrap;">{next_link}</td>
-</tr>""")
+        row = (
+            f"| {phien_link} | {parent_link} | {op} | {started} ({duration}p) | "
+            f"{badge} | {failure_text} | {lh:.2f} | {inf}% ({inf_type}) | "
+            f"{wl} vòng | {top_bot} | {sup} ({ang}°) | {spd_def} | "
+            f"{spd_wall} • {spd_inf} | {bed_t}°C | {noz_t}°C • {fan}% | "
+            f"{extrusion_summary} | {next_link} |"
+        )
+        rows.append(row)
 
-    tbody_content = "\n".join(rows_html)
-
-    return f"""<div style="overflow-x: auto; width: 100%; margin: 1.5rem 0; border: 1px solid var(--table-border-color, #cbd5e1); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); background: var(--background-primary, #ffffff);">
-<table style="min-width: 2380px; width: 100%; border-collapse: collapse; font-size: 0.81rem; font-family: var(--font-text, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif); background: var(--background-primary, #ffffff); line-height: 1.5;">
-<thead>
-<tr style="background: #183e74; color: #ffffff; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.05em; text-align: center; text-transform: uppercase;">
-<th colspan="2" style="padding: 0.65rem 0.5rem; border: 1px solid rgba(255,255,255,0.25);">THÔNG TIN PHIÊN</th>
-<th colspan="2" style="padding: 0.65rem 0.5rem; border: 1px solid rgba(255,255,255,0.25);">VẬN HÀNH & THỜI GIAN</th>
-<th colspan="2" style="padding: 0.65rem 0.5rem; border: 1px solid rgba(255,255,255,0.25);">KẾT QUẢ & HIỆN TƯỢNG</th>
-<th colspan="5" style="padding: 0.65rem 0.5rem; border: 1px solid rgba(255,255,255,0.25);">CẤU TRÚC LỚP & KHỐI</th>
-<th colspan="5" style="padding: 0.65rem 0.5rem; border: 1px solid rgba(255,255,255,0.25);">THÔNG SỐ MÁY & ĐÙN NHỰA</th>
-<th colspan="1" style="padding: 0.65rem 0.5rem; border: 1px solid rgba(255,255,255,0.25);">NỐI TIẾP</th>
-</tr>
-<tr style="background: var(--background-secondary, #f1f5f9); color: var(--text-normal, #1e293b); font-weight: 700; font-size: 0.75rem; text-align: center; border-bottom: 2px solid var(--table-border-color, #94a3b8);">
-<th style="width: 105px; min-width: 105px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Mã Phiên</th>
-<th style="width: 95px; min-width: 95px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Phiên Gốc</th>
-<th style="width: 130px; min-width: 130px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Người Thực Hiện</th>
-<th style="width: 165px; min-width: 165px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Thời Gian (Thời Lượng)</th>
-<th style="width: 135px; min-width: 135px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Trạng Thái</th>
-<th style="width: 320px; min-width: 320px; padding: 0.55rem 0.75rem; border-right: 1px solid var(--table-border-color, #cbd5e1); text-align: left;">Chi Tiết Lỗi / Ghi Chú</th>
-<th style="width: 120px; min-width: 120px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Độ Cao Lớp (mm)</th>
-<th style="width: 100px; min-width: 100px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Mật Độ Ruột</th>
-<th style="width: 100px; min-width: 100px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Thành Vách</th>
-<th style="width: 95px; min-width: 95px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Nóc / Đáy</th>
-<th style="width: 130px; min-width: 130px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Support & Góc</th>
-<th style="width: 115px; min-width: 115px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Tốc Độ F (mm/s)</th>
-<th style="width: 145px; min-width: 145px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Vách • Ruột (mm/s)</th>
-<th style="width: 110px; min-width: 110px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Nhiệt Bàn (°C)</th>
-<th style="width: 145px; min-width: 145px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Đầu In • Quạt</th>
-<th style="width: 275px; min-width: 275px; padding: 0.55rem 0.5rem; border-right: 1px solid var(--table-border-color, #cbd5e1); white-space: nowrap;">Đùn • Rút • Hop</th>
-<th style="width: 120px; min-width: 120px; padding: 0.55rem 0.5rem; white-space: nowrap;">Phiên Nối Tiếp</th>
-</tr>
-</thead>
-<tbody>
-{tbody_content}
-</tbody>
-</table>
-</div>"""
+    return header + "\n" + "\n".join(rows)
 
 
 def build_parameter_session_matrix(entries: List[Dict[str, Any]]) -> Tuple[List[str], List[Dict[str, Any]], str]:
     """
-    Constructs the Spreadsheet Master Table and returns session IDs, session objects, and HTML.
+    Constructs the Spreadsheet Master Table and returns session IDs, session objects, and markdown.
     """
     sessions = [convert_entry_to_print_log_session(e) for e in entries]
     session_cols = [s["sessionId"] for s in sessions]
-    table_html = render_spreadsheet_table(sessions)
-    return session_cols, sessions, table_html
+    table_md = render_spreadsheet_table(sessions)
+    return session_cols, sessions, table_md
 
 
 def render_markdown_log(entries: List[Dict[str, Any]]) -> str:
     """
-    Renders nhat_ky_in.md matching the exact Spreadsheet UI from User Images:
-    - Frontmatter
+    Renders nhat_ky_in.md in 100% Native Obsidian Markdown syntax:
+    - Clean Frontmatter
     - Title: NHẬT KÝ THEO DÕI & TỐI ƯU HÓA THÔNG SỐ IN 3D
-    - Top KPI Summary Cards (Tổng phiên, Thành công, Lỗi warping, Tỷ lệ)
-    - 17-column 2-Tier Master Table (Image 1 & Image 2)
+    - Obsidian Callout KPI Cards
+    - 17-column GFM Master Table with [[PHIEU_XX]] internal links
+    - Embedded Dataview Query
     """
     sessions = [convert_entry_to_print_log_session(e) for e in entries]
     ma_phien = [s["sessionId"] for s in sessions]
-    operator = sessions[0]["operator"] if sessions else "Nguyễn Văn A"
+    operator = sessions[0]["operator"] if sessions else "Kỹ sư in 3D (CoreXY)"
     ma_phien_formatted = str(ma_phien).replace("'", '"')
 
-    kpi_cards_html = render_kpi_cards(sessions)
-    table_html = render_spreadsheet_table(sessions)
+    kpi_callout = render_kpi_cards(sessions)
+    table_markdown = render_spreadsheet_table(sessions)
 
     return f"""---
 ma_phien: {ma_phien_formatted}
@@ -550,9 +487,22 @@ the: [printsim/nhat-ky]
 
 ---
 
-{kpi_cards_html}
+{kpi_callout}
 
-{table_html}
+---
+
+### 📑 BẢNG THEO DÕI CHI TIẾT 17 THAM SỐ IN 3D (MASTER SPREADSHEET)
+
+{table_markdown}
+
+---
+
+## 🔍 Truy Vấn Tự Động (Obsidian Dataview)
+```dataview
+TABLE startedAt as "Thời gian", status as "Trạng thái", slicer.layerHeightMm as "Độ dày lớp", hardware.speedF.defaultMmS as "Tốc độ F"
+FROM "02_NhatKy_In" OR #printsim/phieu-in
+SORT file.mtime DESC
+```
 
 ---
 *Tự động đồng bộ và hợp nhất bởi 3D PrintSim Telemetry Engine.*

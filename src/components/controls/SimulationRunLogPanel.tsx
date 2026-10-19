@@ -37,6 +37,7 @@ interface SimulationRunLogPanelProps {
   onRecordManualLog: () => void;
   onRestoreProfile: (profile: ISimulationProfile) => void;
   onClearLogs: () => void;
+  onOpenReportWithLog?: (logId: string) => void;
 }
 
 function formatDurationShort(sec: number): string {
@@ -65,20 +66,20 @@ export function SimulationRunLogPanel({
         isProfileOpen ? 'left-[376px]' : 'left-17'
       }`}
     >
-      <div className="rounded-2xl glass-panel overflow-hidden w-[285px]">
-        {/* Header Bar */}
+      <div className="rounded-2xl glass-panel overflow-hidden w-[310px] shadow-xl border studio-border">
+        {/* Header Bar: Tiêu đề, Badge số lượng, Nút Ghi log & Nút Thu gọn/Mở rộng cân đối */}
         <div className="px-3 py-2 border-b studio-border flex items-center justify-between bg-[var(--bg-subtle)]">
           <button
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="flex items-center gap-2 text-left cursor-pointer group"
+            className="flex items-center gap-2 text-left cursor-pointer group flex-1 min-w-0"
             title={isExpanded ? 'Thu gọn bảng nhật ký mô phỏng' : 'Mở rộng bảng nhật ký mô phỏng'}
           >
             <div className="w-6 h-6 rounded-lg studio-gold-badge flex items-center justify-center shrink-0">
               <IconTerminal size={12} />
             </div>
-            <div className="leading-tight">
+            <div className="leading-tight min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wider studio-text-primary">
+                <span className="text-[10px] font-bold uppercase tracking-wider studio-text-primary whitespace-nowrap">
                   Nhật Ký Mô Phỏng
                 </span>
                 <span className="px-1.5 py-0.2 rounded studio-gold-badge font-mono text-[9px] font-bold">
@@ -86,18 +87,18 @@ export function SimulationRunLogPanel({
                 </span>
               </div>
               {latestLog && (
-                <p className="text-[9px] studio-text-secondary font-mono truncate max-w-[165px]">
+                <p className="text-[9px] studio-text-secondary font-mono truncate max-w-[155px]">
                   Gần nhất: #{String(latestLog.runNumber).padStart(2, '0')} • {latestLog.material} • Điểm {latestLog.score}
                 </p>
               )}
             </div>
           </button>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
             <button
               data-testid="record-simulation-log-btn"
               onClick={onRecordManualLog}
-              className="px-2 py-1 rounded-lg studio-cta-primary text-[10px] font-semibold transition-all cursor-pointer"
+              className="px-2.5 py-1 rounded-lg studio-cta-primary text-[10px] font-semibold transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-sm whitespace-nowrap"
               title="Lưu thông số cấu hình hiện tại vào Nhật ký mô phỏng"
             >
               + Ghi Log
@@ -115,7 +116,7 @@ export function SimulationRunLogPanel({
 
         {/* Expanded Log Entries List */}
         {isExpanded && (
-          <div className="p-2.5 space-y-2 max-h-60 overflow-y-auto text-[10px]">
+          <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto text-[10px]">
             {logs.map((entry, idx) => {
               const prevEntry = logs[idx + 1];
               const scoreDelta = prevEntry ? entry.score - prevEntry.score : 0;
@@ -123,19 +124,19 @@ export function SimulationRunLogPanel({
               return (
                 <div
                   key={entry.id}
-                  className={`p-2 rounded-xl transition-all ${
+                  className={`p-2.5 rounded-xl transition-all ${
                     idx === 0
                       ? 'studio-gold-badge'
                       : 'studio-card hover:border-[var(--border-strong)]'
                   }`}
                 >
                   {/* Top Row: Run #, Trigger, Time & Score */}
-                  <div className="flex items-center justify-between gap-1 mb-1">
+                  <div className="flex items-center justify-between gap-1 mb-1.5">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="font-mono font-bold text-[10px] studio-text-primary">
                         #{String(entry.runNumber).padStart(2, '0')}
                       </span>
-                      <span className="px-1.5 py-0.2 rounded bg-[var(--bg-subtle)] border studio-border text-[9px] font-medium studio-text-primary truncate">
+                      <span className="px-1.5 py-0.2 rounded bg-[var(--bg-subtle)] border studio-border text-[9px] font-medium studio-text-primary truncate max-w-[85px]">
                         {entry.triggerLabel}
                       </span>
                       <span className="text-[9px] font-mono studio-text-muted shrink-0">
@@ -185,30 +186,28 @@ export function SimulationRunLogPanel({
                     </div>
                   </div>
 
-                  {/* Bottom Row: Output Telemetry & Restore Button */}
-                  <div className="flex items-center justify-between gap-2 font-mono text-[9px] pt-0.5">
-                    <div className="flex items-center gap-2 studio-text-secondary truncate">
+                  {/* Bottom Row: Output Telemetry & Chức năng Khôi Phục Hồ Sơ Snapshot */}
+                  <div className="flex items-center justify-between gap-1.5 font-mono text-[9px] pt-1">
+                    <div className="flex items-center gap-1.5 studio-text-secondary text-[9px]">
                       <span>
-                        ⏱ <strong className="studio-text-primary">{formatDurationShort(entry.estimatedTimeSec)}</strong>
+                        ⏱️ <strong className="studio-text-primary">{formatDurationShort(entry.estimatedTimeSec)}</strong>
                       </span>
                       <span>•</span>
                       <span>
-                        ⚖ <strong className="studio-text-primary">{entry.filamentGrams.toFixed(1)}g</strong>
+                        ⚖️ <strong className="studio-text-primary">{entry.filamentGrams.toFixed(1)}g</strong>
                       </span>
                       <span>•</span>
                       <span>L{entry.totalLayers}</span>
                     </div>
 
-                    {idx > 0 && (
-                      <button
-                        onClick={() => onRestoreProfile(entry.profileSnapshot)}
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded studio-card hover:bg-[var(--bg-hover)] studio-text-primary font-sans font-semibold text-[9px] transition-all cursor-pointer shrink-0"
-                        title="Khôi phục lại bộ thông số của lần chạy này"
-                      >
-                        <IconReset size={9} />
-                        <span>Khôi phục</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={() => onRestoreProfile(entry.profileSnapshot)}
+                      className="flex items-center gap-1 px-2.5 py-0.5 rounded-md studio-card hover:bg-[var(--bg-hover)] text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 font-sans font-semibold text-[9px] transition-all cursor-pointer active:scale-95 shadow-sm shrink-0"
+                      title="Khôi phục cấu hình của lần chạy này ra Studio 3D"
+                    >
+                      <IconReset size={10} />
+                      <span>Khôi phục</span>
+                    </button>
                   </div>
                 </div>
               );

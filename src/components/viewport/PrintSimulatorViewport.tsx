@@ -189,6 +189,7 @@ export function PrintSimulatorViewport({
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: false,
+      preserveDrawingBuffer: true, // CRITICAL: Bảo toàn drawing buffer để toDataURL() không bị trả về ảnh đen/rỗng
       powerPreference: 'high-performance',
     });
     renderer.setSize(width, height);
@@ -198,6 +199,8 @@ export function PrintSimulatorViewport({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.localClippingEnabled = true;
+    renderer.domElement.id = 'printsim-3d-canvas';
+    renderer.domElement.setAttribute('data-viewport-canvas', 'true');
 
     // Dọn dẹp sạch mọi canvas cũ (ngăn ngừa duplicate canvas do React StrictMode)
     while (containerRef.current.firstChild) {
@@ -206,12 +209,18 @@ export function PrintSimulatorViewport({
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
+    // Hàm chụp snapshot 3D chính xác, re-render ngay trước khi xuất dataURL
+    const captureSnapshotFn = () => {
+      if (!rendererRef.current || !sceneRef.current || !cameraRef.current) return null;
+      rendererRef.current.render(sceneRef.current, cameraRef.current);
+      return rendererRef.current.domElement.toDataURL('image/png');
+    };
+
+    (window as any).__capture3DViewportSnapshot = captureSnapshotFn;
+
     // Đăng ký callback chụp ảnh Canvas HD cho Timelapse Studio
     if (onRegisterCaptureSnapshot) {
-      onRegisterCaptureSnapshot(() => {
-        if (!rendererRef.current) return null;
-        return rendererRef.current.domElement.toDataURL('image/png');
-      });
+      onRegisterCaptureSnapshot(captureSnapshotFn);
     }
 
     // 1.4 Controls
@@ -352,6 +361,7 @@ export function PrintSimulatorViewport({
       window.removeEventListener('resize', handleResize);
       transformControls.dispose();
       scene.remove(gizmoHelper as any);
+      delete (window as any).__capture3DViewportSnapshot;
       renderer.dispose();
       if (renderer.domElement && renderer.domElement.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);

@@ -62,6 +62,8 @@ interface SimulatorHeaderProps {
   onOpenModelLibrary?: () => void;
   // Live Telemetry & Report Inspector
   onOpenLiveInspectorModal?: () => void;
+  onOpenSupabaseHub?: () => void;
+  isSupabaseConnected?: boolean;
   onOpenAI3DModal?: () => void;
   theme?: 'dark' | 'light';
   onToggleTheme?: () => void;
@@ -95,6 +97,8 @@ export function SimulatorHeader({
   onOpenLocalSlicerModal,
   onOpenModelLibrary,
   onOpenLiveInspectorModal,
+  onOpenSupabaseHub,
+  isSupabaseConnected,
   onOpenAI3DModal,
   theme = 'dark',
   onToggleTheme,
@@ -157,7 +161,7 @@ export function SimulatorHeader({
                 const found = SAMPLE_MODELS.find((m) => m.id === e.target.value);
                 if (found) onSelectSample(found);
               }}
-              className="bg-transparent text-xs font-medium studio-text-primary focus:outline-none cursor-pointer max-w-[135px] truncate"
+              className="bg-transparent text-xs font-medium studio-text-primary focus:outline-none cursor-pointer max-w-[115px] truncate"
               title="Chọn phôi mô hình 3D"
             >
               {!SAMPLE_MODELS.some((m) => m.id === currentModel.id) && (
@@ -182,7 +186,7 @@ export function SimulatorHeader({
               title="Thư viện phôi 3MF / STL"
             >
               <IconArchive size={12} />
-              <span className="hidden md:inline">Kho 3MF</span>
+              <span className="hidden 2xl:inline">Kho 3MF</span>
             </button>
           )}
 
@@ -199,7 +203,7 @@ export function SimulatorHeader({
             title="Nạp file CAD (.3MF, .STL, .OBJ)"
           >
             <IconImport size={12} />
-            <span className="hidden md:inline">Nạp File</span>
+            <span className="hidden 2xl:inline">Nạp File</span>
           </button>
         </div>
       </div>
@@ -231,7 +235,7 @@ export function SimulatorHeader({
             title="Giai đoạn 2: Mô phỏng cắt lớp trên phôi CAD & Conformal Support"
           >
             <IconCube size={13} />
-            <span>Mô Phỏng CAD</span>
+            <span>Mô Phỏng</span>
           </button>
 
           <button
@@ -243,7 +247,7 @@ export function SimulatorHeader({
             title="Giai đoạn 3: Xem sợi in G-code Bambu Studio thực tế"
           >
             <IconToolpath size={13} />
-            <span>Sợi In Bambu</span>
+            <span>Sợi In</span>
           </button>
         </div>
 
@@ -269,25 +273,25 @@ export function SimulatorHeader({
 
           <button
             onClick={onToggleToolhead}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
               showToolhead ? 'studio-gold-badge font-semibold' : 'studio-pill-inactive'
             }`}
             title="Ẩn/Hiện cụm đầu phun CoreXY"
           >
-            <IconNozzle size={12} />
-            <span className="hidden xl:inline">Đầu In</span>
+            <IconNozzle size={13} />
+            <span className="hidden 3xl:inline">Đầu In</span>
           </button>
 
           {hasSupport && (
             <button
               onClick={onToggleSupport}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
                 showSupport ? 'studio-gold-badge font-semibold' : 'studio-pill-inactive'
               }`}
               title="Ẩn/Hiện cấu trúc Tree Support"
             >
-              <IconSupport size={12} />
-              <span className="hidden xl:inline">Support</span>
+              <IconSupport size={13} />
+              <span className="hidden 3xl:inline">Support</span>
             </button>
           )}
 
@@ -564,16 +568,43 @@ export function SimulatorHeader({
           )}
         </div>
 
-        {/* Live Telemetry Inspector Trigger */}
-        {onOpenLiveInspectorModal && (
-          <button
-            onClick={onOpenLiveInspectorModal}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass-panel hover:opacity-85 text-xs font-semibold transition-all cursor-pointer"
-            title="Thanh tra Telemetry & Báo cáo đã khóa"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-gold)] animate-pulse" />
-            <span className="hidden xl:inline text-[11px] studio-text-gold">Report Live</span>
-          </button>
+        {/* Live Telemetry & Supabase Cloud Hub Pill Group */}
+        {(onOpenLiveInspectorModal || onOpenSupabaseHub) && (
+          <div className="flex items-center rounded-xl glass-panel p-0.5 shrink-0">
+            {onOpenLiveInspectorModal && (
+              <button
+                data-testid="report-live-header-btn"
+                onClick={onOpenLiveInspectorModal}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold hover:bg-[var(--bg-hover)] transition-all cursor-pointer"
+                title="Thanh tra Telemetry & Báo cáo đã khóa"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-gold)] animate-pulse shrink-0" />
+                <span className="text-[11px] studio-text-gold whitespace-nowrap">Report Live</span>
+              </button>
+            )}
+
+            {onOpenLiveInspectorModal && onOpenSupabaseHub && (
+              <div className="w-[1px] h-3.5 bg-[var(--border-hairline)]" />
+            )}
+
+            {onOpenSupabaseHub && (
+              <button
+                data-testid="supabase-hub-btn"
+                onClick={onOpenSupabaseHub}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold hover:bg-[var(--bg-hover)] transition-all cursor-pointer group"
+                title="Supabase Cloud Hub - Quản lý kết nối & Đồng bộ dữ liệu"
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    isSupabaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-[var(--accent-gold)]'
+                  }`}
+                />
+                <span className="text-[11px] studio-text-gold font-semibold group-hover:opacity-85 whitespace-nowrap">
+                  Supabase
+                </span>
+              </button>
+            )}
+          </div>
         )}
 
         {/* Dark / Light Mode Toggle Button */}

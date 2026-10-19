@@ -11,12 +11,24 @@ class Settings:
     def __init__(self) -> None:
         self.host: str = os.getenv("HOST", "127.0.0.1")
         self.port: int = int(os.getenv("PORT", "8000"))
-        self.vault_root: str = os.getenv("VAULT_ROOT", str(Path("ObsidianVault").resolve()))
-        self.json_root: str = os.getenv("JSON_ROOT", str(Path("JsonLogs").resolve()))
-        self.db_path: str = os.getenv("SQLITE_DB_PATH", str(Path("telemetry_buffer.db").resolve()))
+        
+        # Canonical project root directory (D:/Job/HALOCOM/Scripts/Dark_Magician/3D_Sims_QC)
+        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        self.project_root: str = str(project_root)
+        self.vault_root: str = os.getenv("VAULT_ROOT", str(project_root / "ObsidianVault"))
+        self.json_root: str = os.getenv("JSON_ROOT", str(project_root / "JsonLogs"))
+        self.db_path: str = os.getenv("SQLITE_DB_PATH", str(project_root / "telemetry_buffer.db"))
         self.gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
         self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         
+        # Supabase Hub Configuration
+        self.supabase_url: str = os.getenv("SUPABASE_URL", "")
+        self.supabase_key: str = os.getenv(
+            "SUPABASE_KEY",
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", ""))
+        )
+        self.supabase_auto_sync: bool = os.getenv("SUPABASE_AUTO_SYNC", "false").lower() in ("true", "1", "yes")
+
         # CORS allowed origins
         cors_raw = os.getenv(
             "CORS_ORIGINS",

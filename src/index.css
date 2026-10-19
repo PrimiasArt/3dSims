@@ -63,6 +63,21 @@
     -webkit-font-smoothing: antialiased;
     transition: background-color 0.25s ease, color 0.25s ease;
   }
+
+  select {
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+  }
+
+  select option {
+    background-color: #14171d;
+    color: #f4f4f6;
+  }
+
+  [data-theme="light"] select option {
+    background-color: #eae7df;
+    color: #1c1e22;
+  }
 }
 
 .font-mono {
