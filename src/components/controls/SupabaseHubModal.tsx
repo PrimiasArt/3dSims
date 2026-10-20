@@ -5,6 +5,7 @@ import {
   saveSupabaseConfig,
   triggerSupabaseSync,
   fetchSupabaseSqlSchema,
+  DEFAULT_SUPABASE_SQL_MIGRATION,
   ISupabaseHubStatus,
   ISupabaseSyncResult,
 } from '@/services/telemetryService';
@@ -37,7 +38,7 @@ export function SupabaseHubModal({ isOpen, onClose, onStatusChange }: SupabaseHu
   const [keyInput, setKeyInput] = useState<string>('');
   const [showKey, setShowKey] = useState<boolean>(false);
   const [autoSyncInput, setAutoSyncInput] = useState<boolean>(false);
-  const [sqlSchema, setSqlSchema] = useState<string>('');
+  const [sqlSchema, setSqlSchema] = useState<string>(DEFAULT_SUPABASE_SQL_MIGRATION);
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 

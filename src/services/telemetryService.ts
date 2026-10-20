@@ -495,13 +495,85 @@ export async function triggerSupabaseSync(): Promise<ISupabaseSyncResult | null>
   }
 }
 
+export const DEFAULT_SUPABASE_SQL_MIGRATION = `-- ==============================================================================
+-- 🚀 SUPABASE CLOUD HUB: 3D PRINTSIM TELEMETRY & QC PROFILES SCHEMA
+-- Hướng dẫn: Mở Supabase Studio -> SQL Editor -> Dán toàn bộ đoạn mã này và bấm Run.
+-- ==============================================================================
+
+-- 1. BẢNG NHẬT KÝ PHIÊN IN & TELEMETRY CẢM BIẾN (print_sessions)
+CREATE TABLE IF NOT EXISTS public.print_sessions (
+    id TEXT PRIMARY KEY,
+    session_code TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    started_at TEXT,
+    status TEXT DEFAULT 'COMPLETED',
+    user_name TEXT,
+    model_name TEXT,
+    material TEXT,
+    layer_height NUMERIC,
+    infill_density NUMERIC,
+    print_speed NUMERIC,
+    flow_ratio NUMERIC,
+    retraction_mm NUMERIC,
+    nozzle_temp NUMERIC,
+    bed_temp NUMERIC,
+    score NUMERIC DEFAULT 100,
+    notes TEXT,
+    telemetry_json JSONB,
+    synced_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. BẢNG HỒ SƠ CẤU HÌNH IN 3D & KIỂM ĐỊNH QC (profiles_3d)
+CREATE TABLE IF NOT EXISTS public.profiles_3d (
+    id TEXT PRIMARY KEY,
+    profile_code TEXT,
+    name TEXT,
+    material TEXT,
+    qc_score NUMERIC DEFAULT 100,
+    layer_height NUMERIC,
+    infill_density NUMERIC,
+    print_speed NUMERIC,
+    nozzle_temp NUMERIC,
+    bed_temp NUMERIC,
+    locked_contract JSONB,
+    slicer_settings JSONB,
+    markdown_content TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    synced_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 3. CHÍNH SÁCH BẢO MẬT ROW LEVEL SECURITY (RLS)
+ALTER TABLE public.print_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles_3d ENABLE ROW LEVEL SECURITY;
+
+-- Cho phép cả Anon Key (Client) và Service Role Key đọc/ghi dữ liệu
+DROP POLICY IF EXISTS "Public Full Access on print_sessions" ON public.print_sessions;
+CREATE POLICY "Public Full Access on print_sessions" ON public.print_sessions
+    FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Full Access on profiles_3d" ON public.profiles_3d;
+CREATE POLICY "Public Full Access on profiles_3d" ON public.profiles_3d
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- 4. TẠO INDEX TĂNG TỐC ĐỘ TRUY VẤN
+CREATE INDEX IF NOT EXISTS idx_print_sessions_status ON public.print_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_print_sessions_synced_at ON public.print_sessions(synced_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profiles_3d_material ON public.profiles_3d(material);
+CREATE INDEX IF NOT EXISTS idx_profiles_3d_qc_score ON public.profiles_3d(qc_score DESC);
+
+-- Hoàn tất thiết lập bảng Supabase Cloud Hub!
+`;
+
 export async function fetchSupabaseSqlSchema(): Promise<string> {
   try {
     const res = await fetch(`${BACKEND_BASE_URL}/api/v1/supabase/sql-schema`);
-    if (!res.ok) return '';
-    return await res.text();
+    if (!res.ok) return DEFAULT_SUPABASE_SQL_MIGRATION;
+    const text = await res.text();
+    return text.trim() ? text : DEFAULT_SUPABASE_SQL_MIGRATION;
   } catch (err) {
-    console.warn('[Telemetry Client] Lỗi lấy SQL schema:', err);
-    return '';
+    console.info('[Telemetry Client] Sử dụng mã SQL migration mặc định:', err);
+    return DEFAULT_SUPABASE_SQL_MIGRATION;
   }
 }
+
