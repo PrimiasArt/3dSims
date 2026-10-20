@@ -1,39 +1,57 @@
 """
 Application and Infrastructure Configuration Settings.
-Loads from environment variables or .env file with safe defaults.
+Uses Pydantic Settings v2 to load configuration from environment variables
+or .env file with robust validation and safe defaults.
 """
-import os
 from pathlib import Path
-from typing import List
+from typing import List, Union
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class Settings:
-    """System configuration settings."""
-    def __init__(self) -> None:
-        self.host: str = os.getenv("HOST", "127.0.0.1")
-        self.port: int = int(os.getenv("PORT", "8000"))
-        
-        # Canonical project root directory (D:/Job/HALOCOM/Scripts/Dark_Magician/3D_Sims_QC)
-        project_root = Path(__file__).resolve().parent.parent.parent.parent
-        self.project_root: str = str(project_root)
-        self.vault_root: str = os.getenv("VAULT_ROOT", str(project_root / "ObsidianVault"))
-        self.json_root: str = os.getenv("JSON_ROOT", str(project_root / "JsonLogs"))
-        self.db_path: str = os.getenv("SQLITE_DB_PATH", str(project_root / "telemetry_buffer.db"))
-        self.gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-        self.gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-        
-        # Supabase Hub Configuration
-        self.supabase_url: str = os.getenv("SUPABASE_URL", "")
-        self.supabase_key: str = os.getenv(
-            "SUPABASE_KEY",
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY", os.getenv("SUPABASE_ANON_KEY", ""))
-        )
-        self.supabase_auto_sync: bool = os.getenv("SUPABASE_AUTO_SYNC", "false").lower() in ("true", "1", "yes")
 
-        # CORS allowed origins
-        cors_raw = os.getenv(
-            "CORS_ORIGINS",
-            "http://localhost:3001,http://127.0.0.1:3001,http://localhost:5173,http://127.0.0.1:5173"
-        )
-        self.cors_origins: List[str] = [origin.strip() for origin in cors_raw.split(",") if origin.strip()]
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+
+class Settings(BaseSettings):
+    """System configuration settings with Pydantic v2 validation."""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    host: str = Field(default="127.0.0.1", description="FastAPI host address")
+    port: int = Field(default=8000, description="FastAPI port")
+
+    project_root: str = Field(default_factory=lambda: str(PROJECT_ROOT))
+    vault_root: str = Field(default_factory=lambda: str(PROJECT_ROOT / "ObsidianVault"))
+    json_root: str = Field(default_factory=lambda: str(PROJECT_ROOT / "JsonLogs"))
+    db_path: str = Field(default_factory=lambda: str(PROJECT_ROOT / "telemetry_buffer.db"))
+
+    gemini_api_key: str = Field(default="", description="Google Gemini API Key")
+    gemini_model: str = Field(default="gemini-2.5-flash", description="Gemini model identifier")
+
+    # Supabase Hub Configuration
+    supabase_url: str = Field(default="", description="Supabase project REST URL")
+    supabase_key: str = Field(default="", description="Supabase service role or anon key")
+    supabase_auto_sync: bool = Field(default=False, description="Enable automatic sync on save")
+
+    # CORS Configuration
+    cors_origins: List[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+    )
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+
 
 settings = Settings()
