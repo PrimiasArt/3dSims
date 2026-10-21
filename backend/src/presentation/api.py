@@ -26,6 +26,8 @@ from backend.src.presentation.routers import (
     printers_router,
     supabase_hub_router,
     qc_certificate_router,
+    projects_router,
+    analytics_router,
 )
 
 logger = logging.getLogger("3d_sim.api")
@@ -95,5 +97,7 @@ def create_app(
     app.include_router(printers_router)
     app.include_router(supabase_hub_router)
     app.include_router(qc_certificate_router)
+    app.include_router(projects_router)
+    app.include_router(analytics_router)
 
     return app

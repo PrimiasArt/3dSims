@@ -283,3 +283,47 @@ class QCCertificateRequest(BaseModel):
     profile: Dict[str, Any] = Field(..., description="Thông số slicer của phiên in")
     audit_data: Optional[Dict[str, Any]] = Field(default=None, description="Kết quả audit/QC điểm số nếu có")
     printer_id: Optional[str] = Field(default=None, description="ID máy in thực thi")
+
+
+# ==============================================================================
+# 📦 NATIVE 3MF PROJECT PACKAGING & 📊 QC ANALYTICS SCHEMAS
+# ==============================================================================
+
+class Project3MFExportRequest(BaseModel):
+    """Yêu cầu tạo và đóng gói tệp dự án .3mf hoàn chỉnh."""
+    model_config = ConfigDict(extra="ignore")
+
+    model_name: str = Field(default="PrintSim_Model", description="Tên mô hình 3D")
+    profile: Dict[str, Any] = Field(default_factory=dict, description="Bộ thông số in (slicer / hardware)")
+    vertices: Optional[List[Dict[str, float]]] = Field(default=None, description="Danh sách toạ độ đỉnh 3D (x, y, z)")
+    triangles: Optional[List[Dict[str, int]]] = Field(default=None, description="Danh sách chỉ số tam giác (v1, v2, v3)")
+    thumbnail_base64: Optional[str] = Field(default=None, description="Ảnh xem trước thumbnail định dạng base64")
+    sd_card_mode: bool = Field(default=False, description="Xuất định dạng .gcode.3mf nạp thẻ nhớ SD in trực tiếp trên máy in Bambu/Klipper")
+    gcode_content: Optional[str] = Field(default=None, description="Mã G-Code tuỳ chọn nhúng vào thẻ nhớ")
+
+
+class AnalyticsOverviewResponse(BaseModel):
+    """Báo cáo KPI tổng quan chất lượng QC và thống kê vật liệu."""
+    model_config = ConfigDict(extra="ignore")
+
+    total_sessions: int = Field(..., description="Tổng số phiên in")
+    completed_count: int = Field(..., description="Số phiên hoàn tất thành công")
+    failed_count: int = Field(..., description="Số phiên in thất bại")
+    warping_count: int = Field(..., description="Số phiên in bị lỗi warping")
+    success_rate_percent: float = Field(..., description="Tỷ lệ in thành công (%)")
+    avg_duration_minutes: float = Field(..., description="Thời lượng in trung bình mỗi phiên")
+    avg_qc_score: float = Field(..., description="Điểm số chất lượng trung bình")
+    materials_matrix: Dict[str, Any] = Field(default_factory=dict, description="Thống kê theo từng loại vật liệu")
+    defect_pareto: List[Dict[str, Any]] = Field(default_factory=list, description="Bảng phân tích Pareto nguyên nhân lỗi")
+    recent_timeline: List[Dict[str, Any]] = Field(default_factory=list, description="Lịch sử các phiên in gần nhất")
+    operator_leaderboard: Dict[str, int] = Field(default_factory=dict, description="Bảng xếp hạng kỹ sư in")
+
+
+class AnalyticsTrendsResponse(BaseModel):
+    """Chuỗi dữ liệu thời gian phục vụ vẽ biểu đồ xu hướng."""
+    model_config = ConfigDict(extra="ignore")
+
+    total_points: int = Field(..., description="Tổng số điểm dữ liệu")
+    trend_series: List[Dict[str, Any]] = Field(default_factory=list, description="Chuỗi thông số lịch sử")
+    hesitation_churn_leaderboard: List[Dict[str, Any]] = Field(default_factory=list, description="Top các thông số bị phân vân thay đổi nhiều nhất")
+

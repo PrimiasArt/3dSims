@@ -7,6 +7,7 @@ import {
   generateSampleGcode,
   downloadFile,
   download3MFProject,
+  downloadGcode3MF,
   downloadBinarySTL,
   copyProfileToClipboard,
 } from '@/services/slicerExporter';
@@ -79,6 +80,13 @@ export function ExportProfileModal({
     if (!geometry) return;
     const file = download3MFProject(geometry, profile, metrics, modelName, modelTransform);
     setExportNotice(`Đã đóng gói & tải xuống dự án 3MF: ${file}`);
+    setTimeout(() => setExportNotice(null), 4000);
+  };
+
+  const handleDownloadGcode3MF = () => {
+    if (!geometry) return;
+    const file = downloadGcode3MF(geometry, profile, metrics, modelName, modelTransform);
+    setExportNotice(`Đã đóng gói file thẻ nhớ SD cắm máy in: ${file}`);
     setTimeout(() => setExportNotice(null), 4000);
   };
 
@@ -221,7 +229,7 @@ export function ExportProfileModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   onClick={handleDownload3MF}
                   className="p-4 rounded-xl studio-card hover:border-[var(--accent-gold-border)] text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group"
@@ -231,15 +239,37 @@ export function ExportProfileModal({
                       <IconCube className="w-4 h-4" />
                     </div>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded studio-gold-badge font-bold">
-                      KHUYÊN DÙNG
+                      DỰ ÁN PC
                     </span>
                   </div>
                   <div>
                     <div className="text-xs font-bold studio-text-primary group-hover:studio-text-gold transition-colors">
-                      Tải Gói Dự Án Chuẩn (.3MF)
+                      Gói Dự Án Chuẩn (.3MF)
                     </div>
                     <p className="text-[11px] studio-text-secondary mt-1">
-                      Đóng gói cả lưới mô hình 3D (`3D/3dmodel.model`) lẫn cấu hình cắt lớp mở trực tiếp bằng Bambu Studio / OrcaSlicer.
+                      Đóng gói lưới 3D và cấu hình cắt lớp mở bằng Bambu Studio / OrcaSlicer trên máy tính.
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleDownloadGcode3MF}
+                  className="p-4 rounded-xl studio-card hover:border-[var(--accent-gold-border)] text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group bg-[var(--accent-gold-bg)]/20 border-amber-500/40"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="w-9 h-9 rounded-lg studio-gold-badge flex items-center justify-center">
+                      <IconLayers className="w-4 h-4" />
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold">
+                      THẺ NHỚ SD
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold studio-text-gold group-hover:underline transition-colors">
+                      Thẻ Nhớ SD (.GCODE.3MF)
+                    </div>
+                    <p className="text-[11px] studio-text-secondary mt-1">
+                      Nhúng sẵn mã G-Code và ảnh thumbnail. Chép vào thẻ nhớ SD cắm máy in Bambu Lab / Klipper là in ngay!
                     </p>
                   </div>
                 </button>
@@ -258,10 +288,10 @@ export function ExportProfileModal({
                   </div>
                   <div>
                     <div className="text-xs font-bold studio-text-primary group-hover:studio-text-gold transition-colors">
-                      Tải Lưới Hình Học (.STL)
+                      Lưới Hình Học (.STL)
                     </div>
                     <p className="text-[11px] studio-text-secondary mt-1">
-                      Xuất tệp Binary STL tiêu chuẩn với kích thước {dimX}×{dimY}×{dimZ} mm tương thích với mọi phần mềm CAD &amp; Slicer.
+                      Xuất tệp Binary STL tiêu chuẩn kích thước {dimX}×{dimY}×{dimZ} mm cho mọi CAD &amp; Slicer.
                     </p>
                   </div>
                 </button>

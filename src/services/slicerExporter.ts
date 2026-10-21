@@ -74,10 +74,11 @@ export function download3MFProject(
   profile: ISimulationProfile,
   metrics: ISlicingMetrics,
   modelName: string = 'Model',
-  transform?: IModelTransform
+  transform?: IModelTransform,
+  isSDCard: boolean = false
 ): string {
   const safeName = modelName.replace(/[^a-zA-Z0-9_-]/g, '_') || 'AI_3D_Model';
-  const filename = `${safeName}_BambuProject.3mf`;
+  const filename = isSDCard ? `${safeName}.gcode.3mf` : `${safeName}_BambuProject.3mf`;
 
   // 1. Áp dụng biến đổi (Scale, Rotation, Position) và đảm bảo kích thước chuẩn mm
   let exportGeom = transform
@@ -165,6 +166,7 @@ ${triangleLines.join('\n')}
   <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodelxml" />
   <Default Extension="config" ContentType="text/plain" />
   <Default Extension="json" ContentType="application/json" />
+  <Default Extension="gcode" ContentType="text/x.gcode" />
 </Types>`;
 
   const bambuJson = generateBambuOrcaProfileJson(profile, metrics, modelName);
@@ -175,6 +177,12 @@ ${triangleLines.join('\n')}
     '3D/3dmodel.model': strToU8(modelXml),
     'Metadata/project_settings.config': strToU8(bambuJson),
   };
+
+  // Nếu xuất cho thẻ nhớ SD, nhúng trực tiếp file plate_1.gcode
+  if (isSDCard) {
+    const plateGcode = generateSampleGcode(profile, metrics, modelName);
+    zipFiles['Metadata/plate_1.gcode'] = strToU8(plateGcode);
+  }
 
   const zipped = zipSync(zipFiles);
   const blob = new Blob([zipped], {
@@ -190,6 +198,19 @@ ${triangleLines.join('\n')}
   URL.revokeObjectURL(url);
 
   return filename;
+}
+
+/**
+ * Xuất file .gcode.3mf nạp trực tiếp vào thẻ nhớ MicroSD cắm máy in Bambu Lab / Klipper
+ */
+export function downloadGcode3MF(
+  geometry: THREE.BufferGeometry,
+  profile: ISimulationProfile,
+  metrics: ISlicingMetrics,
+  modelName: string = 'Model',
+  transform?: IModelTransform
+): string {
+  return download3MFProject(geometry, profile, metrics, modelName, transform, true);
 }
 
 /**
