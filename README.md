@@ -1,57 +1,76 @@
-# 🖨️ 3D PrintSim Pro — Hệ Thống Giả Lập & Kiểm Lỗi In 3D Thời Gian Thực
+# 🖨️ 3D PrintSim Pro — Hệ Thống Giả Lập, Kiểm Lỗi In 3D & Trợ Lý Cắt Lớp AI
 
-Ứng dụng web độc lập (Standalone Web App) chuyên dụng giả lập quá trình in 3D CoreXY theo thời gian thực (Real-time Slicing & Printing Simulator). Cho phép người dùng thử nghiệm đa dạng profile cắt lớp (Layer Height, Infill, Support, Nhiệt độ, Vật liệu), tua nhanh thời gian in (1x - 1000x), và phát hiện sớm các khuyết tật in (sập góc dốc Overhang, cong vênh Warping, xung đột nhiệt độ).
+Hệ thống Full-Stack chuyên dụng mô phỏng và kiểm soát chất lượng in 3D FDM/CoreXY theo thời gian thực (Real-time Slicing & Printing Simulator). Ứng dụng tích hợp công nghệ WebGL Three.js không gian 3D, Backend FastAPI Clean Architecture, công cụ đóng gói dự án 3MF & định dạng `.gcode.3mf` nạp thẳng thẻ nhớ SD máy in, trợ lý AI chuẩn đoán khuyết tật và đồng bộ đám mây Supabase.
 
 ---
 
 ## 🌟 Tính Năng Trọng Tâm
 
-1. **Không Gian Mô Phỏng 3D Trực Quan (Three.js WebGL)**:
-   - Bàn in gia nhiệt Textured PEI (chuẩn 256x256mm Bambu Lab / Voron) với lưới toạ độ laser và vạch gạt kim.
-   - Đầu in CoreXY ảo (Virtual Toolhead) di chuyển thực tế theo quỹ đạo đùn nhựa (Perimeter, Infill, Support, Travel).
-   - Đèn LED trạng thái đổi màu theo vật liệu và quạt tản nhiệt xoay động khi in.
+### 1. Không Gian Mô Phỏng 3D Trực Quan (Three.js WebGL)
+- Bàn in gia nhiệt Textured PEI (chuẩn 256x256mm Bambu Lab / Voron) với lưới toạ độ laser và vạch gạt kim.
+- Đầu in CoreXY ảo (Virtual Toolhead) di chuyển thực tế theo quỹ đạo đùn nhựa (Perimeter, Infill, Support, Travel).
+- Đèn LED trạng thái đổi màu theo vật liệu và quạt tản nhiệt xoay động khi in.
 
-2. **Cơ Chế Cắt Lớp & Tua Nhanh Thời Gian (Time-lapse Scrubbing)**:
-   - Cắt lớp động theo mặt phẳng thực (Clipping Planes) — mô hình "mọc lên" chân thực theo từng layer.
-   - Thanh trượt Layer Scrubber: tua từ lớp $0 \rightarrow N$ tức thì.
-   - Các mốc tốc độ tua: `1x`, `10x`, `50x`, `200x`, `1000x`, và chế độ **"Thành Phẩm"** (Instant Finish).
-   - Đo lường vi sai thời gian thực: thời gian in trôi qua, khối lượng nhựa tiêu thụ, cao độ trục Z (mm).
+### 2. Cơ Chế Cắt Lớp & Tua Nhanh Thời Gian (Time-lapse Scrubbing)
+- Cắt lớp động theo mặt phẳng thực (Clipping Planes) — mô hình "mọc lên" chân thực theo từng layer.
+- Thanh trượt Layer Scrubber: tua từ lớp $0 \rightarrow N$ tức thì.
+- Các mốc tốc độ tua: `1x`, `10x`, `50x`, `200x`, `1000x`, và chế độ **"Thành Phẩm"** (Instant Finish).
+- Đo lường vi sai thời gian thực: thời gian in trôi qua, khối lượng nhựa tiêu thụ, cao độ trục Z (mm).
 
-3. **Thử Nghiệm Đa Cấu Hình Cắt Lớp (Slicing Profiles)**:
-   - **Preset có sẵn:**
-     - *Bambu Lab Standard (0.20mm)*: Cân bằng tốc độ và thẩm mỹ.
-     - *Ultra-Fine Aesthetic (0.08mm)*: Bề mặt láng mịn không gân.
-     - *Draft Turbo Fast (0.28mm)*: Tốc độ siêu tốc cho mẫu thử.
-     - *OrcaSlicer Tough Mech (PETG 0.20mm)*: 4 vách, Gyroid 25% chịu lực.
-     - *Flex TPU 95A Dampener (0.20mm)*: Chuyên dụng cho nhựa dẻo chống rung.
-   - Tùy chỉnh chi tiết: Chiều cao lớp, Mật độ ruột (0 - 100%), Hoa văn ruột (Gyroid, Grid, Honeycomb, Triangles, Concentric), Tree Support, Vành Brim chống cong vênh, Nhiệt độ Nozzle/Bed, Tốc độ in (30 - 500 mm/s).
+### 3. Xuất File Đa Định Dạng — Hỗ Trợ Độc Quyền Thẻ Nhớ SD (`.gcode.3mf`)
+- **Gói Dự Án Chuẩn (`.3mf`)**: Đóng gói mô hình 3D, cấu hình lát cắt và thumbnail màn hình LCD tương thích 100% với **Bambu Studio** và **OrcaSlicer**.
+- **Thẻ Nhớ SD Máy In (`.gcode.3mf`)**: Tự động sinh luồng mã lệnh G-code FDM hoàn chỉnh (`Metadata/plate_1.gcode`) và đăng ký MIME Type `text/x.gcode`. Người dùng chỉ cần chép vào thẻ MicroSD cắm trực tiếp vào máy in (Bambu Lab X1C / P1S / A1 / A1 Mini, Voron, Klipper) là in được ngay mà không cần mở lại slicer.
+- **Lưới Hình Học Thô (`.stl`)**: Xuất mesh STL chuẩn hóa toạ độ.
 
-4. **Báo Cáo Kiểm Lỗi & Bản Đồ Nhiệt Khuyết Tật (Pre-Flight HUD)**:
-   - Quét pháp tuyến bề mặt (Surface Normals) phát hiện góc dốc $> 45^\circ - 50^\circ$ (Overhang Collapse).
-   - Kiểm tra diện tích đáy bám bàn in PEI chống cong vênh (Warping Risk).
-   - Bảng đo khuyết tật hiển thị trực quan trên mô hình (Đỏ: Rủi ro sập, Vàng: Cần support, Xanh: An toàn).
-   - **Tính năng "Tự Động Sửa Profile" (One-Click Auto-Fix):** Tự động bù đắp thông số (bật Tree Support, thêm Brim 5mm, cân nhiệt độ) để nâng điểm khả thi lên tối đa (100/100).
+### 4. Trợ Lý AI Chuẩn Đoán Khuyết Tật & Tự Động Tối Ưu Profile
+- Quét pháp tuyến bề mặt (Surface Normals) phát hiện rủi ro sập góc dốc Overhang ($> 45^\circ - 50^\circ$) và cong vênh Warping.
+- Tích hợp mô hình AI (Google Gemini 2.5) tự động đọc telemetries và đề xuất bộ thông số tối ưu (Auto-tune Profile).
+- Cấp Chứng Nhận Kiểm Chuẩn Chất Lượng (QC Certificate) với mã chứng thực SHA-256 bảo mật.
 
-5. **Bộ Thư Viện Mẫu Đa Dạng & Nạp File Tùy Chỉnh**:
-   - Tích hợp sẵn 5 mẫu in thử nghiệm kinh điển: *3D Benchy, Voron Calibration Cube XYZ, Khớp Bánh Răng Cơ Khí Print-in-Place, Hộp Gridfinity Vách Mỏng, Rồng Khớp Nghệ Thuật*.
-   - Hỗ trợ tải file `.stl` hoặc `.obj` trực tiếp từ máy tính để phân tích.
+### 5. Backend FastAPI Clean Architecture & Telemetry Engine
+- **Telemetry Streaming & WebSocket Rooms**: Tiếp nhận và stream dữ liệu cảm biến (nhiệt độ đầu đùn, bàn in, độ rung rung cảm, tốc độ quạt) 2 chiều thời gian thực.
+- **Fleet Management**: Quản lý ma trận phân đội máy in (Bambu Lab X1C, P1S, A1 Mini, Voron 2.4, Creality K1C, Prusa MK4).
+- **Hệ Thống Phân Tích Analytics**: Báo cáo tổng lượng nhựa tiêu thụ, thời lượng in trung bình, tỷ lệ thành công và phân bổ vật liệu.
+- **Đồng Bộ Đám Mây Supabase Hub**: Đồng bộ dữ liệu nhật ký in và profiles lên đám mây với cơ chế tự động thử lại khi mất mạng.
 
 ---
 
-## 🚀 Hướng Dẫn Cài Đặt & Chạy Standalone
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
 
+### 1. Yêu cầu hệ thống
+- **Node.js**: v18.0 trở lên
+- **Python**: 3.10 trở lên
+
+### 2. Cài đặt & chạy Frontend (React + Vite)
 ```bash
-# Di chuyển vào thư mục dự án
-cd "F:\Project\3D Simulator"
-
-# Cài đặt thư viện phụ thuộc (nếu chưa cài)
+# 1. Cài đặt thư viện dependencies
 npm install
 
-# Khởi chạy máy chủ phát triển
+# 2. Khởi chạy máy chủ phát triển Frontend
 npm run dev
 ```
+> Giao diện web sẽ sẵn sàng tại: **`http://localhost:3001`** (hoặc port được cấp trên terminal).
 
-Ứng dụng sẽ chạy tại: **`http://localhost:3001`**
+### 3. Cài đặt & chạy Backend (FastAPI Python)
+```bash
+# 1. Tạo môi trường ảo (khuyên dùng)
+python -m venv .venv
+# Trên Windows:
+.venv\Scripts\activate
+# Trên Linux/macOS:
+source .venv/bin/activate
+
+# 2. Cài đặt các gói phụ thuộc
+pip install -r requirements.txt
+
+# 3. Cấu hình biến môi trường (tùy chọn)
+cp .env.example .env
+
+# 4. Khởi chạy máy chủ Backend
+python -m backend.main
+```
+> API Server sẽ chạy tại: **`http://127.0.0.1:8000`**  
+> Tài liệu Swagger UI: **`http://127.0.0.1:8000/docs`**
 
 ---
 
@@ -60,8 +79,6 @@ npm run dev
 Ứng dụng được thiết kế sẵn sàng để nhúng vào bất kỳ trang web nào (đặc biệt là module **AI Studio 2D > 3D** của `3D Hub`) qua giao thức `postMessage` bảo mật 2 chiều.
 
 ### 1. Nhúng bằng thẻ `<iframe>`
-Trong module Studio của `3D Hub`:
-
 ```tsx
 <iframe
   id="print-simulator-frame"
@@ -132,7 +149,9 @@ window.addEventListener('message', (event) => {
 
 ## 🛠️ Công Nghệ Sử Dụng (Tech Stack)
 
-* **Framework:** React 19 + TypeScript + Vite 8
-* **Đồ họa 3D:** Three.js (r186) + OrbitControls + Clipping Planes + Custom Shaders
-* **Giao diện:** Tailwind CSS v4 + Lucide Icons + Apple VisionOS Dark Spatial Glass
-* **Hiệu ứng:** Canvas Confetti + Keyframe Animations
+- **Frontend**: React 19 + TypeScript + Vite 8
+- **Đồ họa 3D**: Three.js (r186) + OrbitControls + Clipping Planes + Custom Shaders
+- **Giao diện**: Tailwind CSS v4 + Lucide Icons + Apple VisionOS Dark Spatial Glass
+- **Backend API**: Python 3.10+ + FastAPI + Uvicorn + Pydantic v2
+- **Đóng gói 3D Manufacturing Format**: 3MF XML Open Packaging Convention + FDM G-code Engine
+- **Cloud & Database**: SQLite WAL Buffer + Supabase Cloud PostgreSQL (Edge Ready)

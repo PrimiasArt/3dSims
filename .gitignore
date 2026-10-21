@@ -1,4 +1,4 @@
-﻿# Logs
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -46,6 +46,7 @@ test_output/
 # Local Secrets, Personal Vaults & Internal Planning
 .env
 .env.*
+!.env.example
 ObsidianVault/
 JsonLogs/
 PROJECT_STATUS_AND_PLANNING_REPORT.md
