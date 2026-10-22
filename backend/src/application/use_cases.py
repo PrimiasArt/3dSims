@@ -69,7 +69,7 @@ class CalculateParameterChurnUseCase:
         events: List[TelemetryEvent],
         profile_snapshot: Optional[Dict[str, Any]] = None,
     ) -> List[ParameterMetric]:
-        from backend.src.infrastructure.minimalist_formatter import ALL_PARAM_SPECS
+        from backend.src.infrastructure.formatters import ALL_PARAM_SPECS
 
         grouped: Dict[str, List[TelemetryEvent]] = {}
         for ev in events:

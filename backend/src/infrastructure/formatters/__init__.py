@@ -16,6 +16,7 @@ from backend.src.infrastructure.formatters.session_formatter import (
     render_spreadsheet_table,
     build_parameter_session_matrix,
     render_markdown_log,
+    render_phieu_markdown,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "render_spreadsheet_table",
     "build_parameter_session_matrix",
     "render_markdown_log",
+    "render_phieu_markdown",
 ]

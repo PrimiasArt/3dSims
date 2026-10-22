@@ -77,7 +77,7 @@ async def record_telemetry(
 )
 async def inspect_parameters():
     """Truy xuất danh mục toàn bộ các tham số có thể thay đổi của app và bảng ánh xạ report."""
-    from backend.src.infrastructure.minimalist_formatter import APP_CHANGEABLE_PARAMETERS
+    from backend.src.infrastructure.formatters import APP_CHANGEABLE_PARAMETERS
     return JSONResponse(
         content={
             "status": "success",
@@ -109,7 +109,7 @@ async def get_session_report_params(
     events = repo.get_events_by_session(session_id)
     metrics = churn_calc.execute(events) if events else []
 
-    from backend.src.infrastructure.minimalist_formatter import (
+    from backend.src.infrastructure.formatters import (
         build_session_entry,
         extract_session_report_parameters,
         render_markdown_log,

@@ -345,3 +345,99 @@ SORT file.mtime DESC
 ---
 *Tự động đồng bộ và hợp nhất bởi 3D PrintSim Telemetry Engine.*
 """
+
+
+def render_phieu_markdown(s: dict) -> str:
+    """Renders individual PHIEU_{session_id}.md note for 02_NhatKy_In folder."""
+    s_id = str(s.get("sessionId", "01"))
+    op = s.get("operator", "Kỹ sư in 3D (CoreXY)")
+    started = s.get("startedAt", "2026-10-17 10:00")
+    dur = s.get("durationMinutes", 7)
+    status = s.get("status", "COMPLETED")
+    parent = s.get("parentSessionId")
+    failure = s.get("failureDetail")
+
+    slicer = s.get("slicer", {})
+    lh = slicer.get("layerHeightMm", 0.2)
+    inf = slicer.get("infillPercent", 20)
+    inf_type = slicer.get("infillType", "Gyroid")
+    wl = slicer.get("wallLoops", 2)
+    tb = slicer.get("topBottomLayers", {"top": 4, "bottom": 3})
+    sup = slicer.get("supportType", "None")
+    ang = slicer.get("supportOverhangAngle", 45)
+
+    hw = s.get("hardware", {})
+    spd = hw.get("speedF", {})
+    spd_def = spd.get("defaultMmS", 60)
+    spd_wall = spd.get("wallMmS", 150)
+    spd_inf = spd.get("infillMmS", 275)
+
+    temps = hw.get("tempsE", {})
+    bed_t = temps.get("bedTempC", 60)
+    noz_t = temps.get("nozzleTempC", 210)
+    fan = temps.get("fanSpeedPercent", 100)
+
+    ext = hw.get("extrusion", {})
+    flow = ext.get("flowRatio", 0.98)
+    ret = ext.get("retractionMm", 0.8)
+    zh = ext.get("zHopMm", 0.4)
+
+    status_text = "Hoàn tất thành công" if status == "COMPLETED" else ("Lỗi Warping" if status == "WARPING" else "Thất bại")
+    parent_md = f"[[PHIEU_{parent}|Phiên {parent}]]" if parent else "Không có (Phiên gốc ban đầu)"
+
+    return f"""---
+ma_phien: "{s_id}"
+nguoi_thuc_hien: "{op}"
+thoi_gian: "{started}"
+thoi_luong: "{dur} phút"
+trang_thai: "{status}"
+phien_goc: "{parent or '-'}"
+tags:
+  - printsim/phieu-in
+  - printsim/phien-{s_id}
+---
+
+# 🖨️ Phiếu In Chi Tiết: PHIEU_{s_id}
+
+> **Điều hướng:** [[000_PRINT_INDEX|MOC Tổng]] | [[nhat_ky_in|📋 Bảng Nhật Ký Tổng Hợp]]  
+> **Người thực hiện:** `{op}` | **Bắt đầu lúc:** `{started}` (`{dur} phút`)  
+> **Trạng thái:** `{status_text}` | **Phiên gốc:** {parent_md}
+
+---
+
+## 📌 Kết Quả & Hiện Tượng In
+- **Đánh giá tổng quan:** {status_text}
+- **Chi tiết lỗi / Ghi chú:** {failure if failure else "Không phát hiện lỗi nghiêm trọng. Quá trình in diễn ra ổn định hoàn toàn."}
+
+---
+
+## ⚙️ Cấu Hình Slicer & Khối (Cấu Trúc Lớp)
+| Thông số | Giá trị thiết lập | Ghi chú kỹ thuật |
+| :--- | :--- | :--- |
+| **Độ cao lớp (Layer Height)** | `{lh:.2f} mm` | Chiều cao từng lớp đùn |
+| **Mật độ ruột (Infill)** | `{inf}% ({inf_type})` | Cấu trúc rỗng bên trong |
+| **Số vòng thành vách (Wall Loops)** | `{wl} vòng` | Độ dày vỏ ngoài |
+| **Lớp Nóc / Đáy (Top/Bottom)** | `{tb.get('top', 4)} / {tb.get('bottom', 3)}` | Số lớp kín mặt trên & mặt đáy |
+| **Giá đỡ & Góc (Support)** | `{sup} ({ang}°)` | Kiểu giá đỡ và ngưỡng góc dốc |
+
+---
+
+## 🎛️ Thông Số Phần Cứng & Đùn Nhựa (Hardware & Telemetry)
+| Thành phần | Thiết lập vận hành | Vai trò kỹ thuật |
+| :--- | :--- | :--- |
+| **Tốc độ di chuyển F** | `{spd_def} mm/s` (Vách: `{spd_wall}` • Ruột: `{spd_inf}`) | Tốc độ in các phân đoạn |
+| **Nhiệt độ E** | Bàn in: `{bed_t}°C` • Đầu in: `{noz_t}°C` • Quạt: `{fan}%` | Kiểm soát nhiệt & tản nhiệt |
+| **Cơ chế đùn nhựa** | Dòng đùn: `{flow}` • Rút sợi: `{ret} mm` • Z-Hop: `{zh} mm` | Chống tơ và chống va chạm |
+
+---
+
+## 🔍 Truy Vấn Tự Động (Obsidian Dataview)
+```dataview
+TABLE startedAt as "Thời gian", status as "Trạng thái", slicer.layerHeightMm as "Độ dày lớp", hardware.speedF.defaultMmS as "Tốc độ F"
+FROM #printsim/phieu-{s_id}
+```
+
+---
+*Phiếu in được tự động kết xuất bởi 3D PrintSim Telemetry Engine.*
+"""
+

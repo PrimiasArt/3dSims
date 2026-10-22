@@ -51,7 +51,7 @@ async def export_slicer(
         # Fallback to session report live extractor
         events = repo.get_events_by_session(session_id)
         metrics = churn_calc.execute(events) if events else []
-        from backend.src.infrastructure.minimalist_formatter import build_session_entry
+        from backend.src.infrastructure.formatters import build_session_entry
         session_dict = build_session_entry(
             phien_index=1,
             metrics=metrics,

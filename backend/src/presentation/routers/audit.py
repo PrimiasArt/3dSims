@@ -23,93 +23,6 @@ from backend.src.presentation.schemas import (
 router = APIRouter(tags=["Audit & Session Logs"])
 
 
-def _generate_phieu_markdown(s: dict) -> str:
-    s_id = str(s.get("sessionId", "01"))
-    op = s.get("operator", "Kỹ sư in 3D (CoreXY)")
-    started = s.get("startedAt", "2026-10-17 10:00")
-    dur = s.get("durationMinutes", 7)
-    status = s.get("status", "COMPLETED")
-    parent = s.get("parentSessionId")
-    failure = s.get("failureDetail")
-
-    slicer = s.get("slicer", {})
-    lh = slicer.get("layerHeightMm", 0.2)
-    inf = slicer.get("infillPercent", 20)
-    inf_type = slicer.get("infillType", "Gyroid")
-    wl = slicer.get("wallLoops", 2)
-    tb = slicer.get("topBottomLayers", {"top": 4, "bottom": 3})
-    sup = slicer.get("supportType", "None")
-    ang = slicer.get("supportOverhangAngle", 45)
-
-    hw = s.get("hardware", {})
-    spd = hw.get("speedF", {})
-    spd_def = spd.get("defaultMmS", 60)
-    spd_wall = spd.get("wallMmS", 150)
-    spd_inf = spd.get("infillMmS", 275)
-
-    temps = hw.get("tempsE", {})
-    bed_t = temps.get("bedTempC", 60)
-    noz_t = temps.get("nozzleTempC", 210)
-    fan = temps.get("fanSpeedPercent", 100)
-
-    ext = hw.get("extrusion", {})
-    flow = ext.get("flowRatio", 0.98)
-    ret = ext.get("retractionMm", 0.8)
-    zh = ext.get("zHopMm", 0.4)
-
-    status_text = "Hoàn tất thành công" if status == "COMPLETED" else ("Lỗi Warping" if status == "WARPING" else "Thất bại")
-    parent_md = f"[[PHIEU_{parent}|Phiên {parent}]]" if parent else "Không có (Phiên gốc ban đầu)"
-
-    return f"""---
-ma_phien: "{s_id}"
-nguoi_thuc_hien: "{op}"
-thoi_gian: "{started}"
-thoi_luong: "{dur} phút"
-trang_thai: "{status}"
-phien_goc: "{parent or '-'}"
-tags:
-  - printsim/phieu-in
-  - printsim/phien-{s_id}
----
-
-# 🖨️ Phiếu In Chi Tiết: PHIEU_{s_id}
-
-> **Điều hướng:** [[000_PRINT_INDEX|MOC Tổng]] | [[nhat_ky_in|📋 Bảng Nhật Ký Tổng Hợp]]  
-> **Người thực hiện:** `{op}` | **Bắt đầu lúc:** `{started}` (`{dur} phút`)  
-> **Trạng thái:** `{status_text}` | **Phiên gốc:** {parent_md}
-
----
-
-## 📌 Kết Quả & Hiện Tượng In
-- **Đánh giá tổng quan:** {status_text}
-- **Chi tiết lỗi / Ghi chú:** {failure if failure else "Không phát hiện lỗi nghiêm trọng. Quá trình in diễn ra ổn định hoàn toàn."}
-
----
-
-## ⚙️ Cấu Hình Slicer & Khối (Cấu Trúc Lớp)
-| Thông số | Giá trị thiết lập | Ghi chú kỹ thuật |
-| :--- | :--- | :--- |
-| **Độ cao lớp (Layer Height)** | `{lh:.2f} mm` | Chiều cao từng lớp đùn |
-| **Mật độ ruột (Infill)** | `{inf}% ({inf_type})` | Cấu trúc rỗng bên trong |
-| **Số vòng thành vách (Wall Loops)** | `{wl} vòng` | Độ dày vỏ ngoài |
-| **Lớp Nóc / Đáy (Top/Bottom)** | `{tb.get('top', 4)} / {tb.get('bottom', 3)}` | Số lớp kín mặt trên & mặt đáy |
-| **Giá đỡ & Góc (Support)** | `{sup} ({ang}°)` | Kiểu giá đỡ và ngưỡng góc dốc |
-
----
-
-## 🎛️ Thông Số Phần Cứng & Đùn Nhựa (Hardware & Telemetry)
-| Thành phần | Thiết lập | Chi tiết |
-| :--- | :--- | :--- |
-| **Tốc độ in mặc định** | `{spd_def} mm/s` | Tốc độ đẩy đầu phun cơ sở |
-| **Tốc độ Vách • Ruột** | `{spd_wall} mm/s • {spd_inf} mm/s` | Vách ngoài và ruột khối |
-| **Nhiệt độ bàn in** | `{bed_t}°C` | Độ bám dính đáy chống warping |
-| **Nhiệt độ đầu in & Quạt gió** | `{noz_t}°C • {fan}%` | Nhiệt độ nóng chảy & làm nguội |
-| **Hệ số đùn • Rút • Z-Hop** | `Dòng {flow:.2f} | Rút {ret}mm | Hop {zh}mm` | Kiểm soát đùn và chống xước mặt |
-
----
-*Tự động đồng bộ bởi 3D PrintSim Telemetry Engine.*
-"""
-
 
 @router.post(
     "/api/v1/sessions/{session_id:path}/audit",
@@ -228,9 +141,10 @@ async def save_session_log(
     else:
         sessions.append(session_entry)
 
-    from backend.src.infrastructure.minimalist_formatter import (
+    from backend.src.infrastructure.formatters import (
         build_parameter_session_matrix,
         render_markdown_log,
+        render_phieu_markdown,
     )
 
     session_cols, json_matrix_rows, _ = build_parameter_session_matrix(sessions)
@@ -252,7 +166,7 @@ async def save_session_log(
 
     # 4. Generate PHIEU_{s_id}.md for Obsidian (02_NhatKy_In)
     phieu_path = vault_notes_dir / f"PHIEU_{s_id}.md"
-    phieu_md = _generate_phieu_markdown(session_entry)
+    phieu_md = render_phieu_markdown(session_entry)
     vault._atomic_write(phieu_path, phieu_md)
 
     # 5. Generate Profile_In3D_{s_id}.md for Obsidian (01_Profiles_In3D)
