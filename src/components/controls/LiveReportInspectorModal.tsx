@@ -1370,16 +1370,16 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
             </div>
 
             <div className="rounded-xl studio-card overflow-hidden max-h-80 overflow-y-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 bg-[var(--bg-card)] border-b studio-border z-10">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="sticky top-0 z-20 shadow-md">
                   <tr className="text-[10px] studio-text-muted uppercase font-semibold">
-                    <th className="py-2 px-3">Tên Tham Số</th>
-                    <th className="py-2 px-3">Phân Nhóm</th>
-                    <th className="py-2 px-3">Giá Trị Cấu Hình</th>
-                    <th className="py-2 px-3">Mục Tiêu Report</th>
+                    <th className="py-2.5 px-3 bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20">Tên Tham Số</th>
+                    <th className="py-2.5 px-3 bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20">Phân Nhóm</th>
+                    <th className="py-2.5 px-3 bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20">Giá Trị Cấu Hình</th>
+                    <th className="py-2.5 px-3 bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20">Mục Tiêu Report</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--border-subtle)] font-mono text-[11px]">
+                <tbody className="divide-y divide-[var(--border-hairline)] font-mono text-[11px]">
                   {catalog.map((param) => {
                     const curVal = (activeProfile as unknown as Record<string, unknown>)[param.id];
                     const displayVal =
