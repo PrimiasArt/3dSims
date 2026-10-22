@@ -440,3 +440,353 @@ export async function copyProfileToClipboard(profile: ISimulationProfile, metric
     return false;
   }
 }
+
+/**
+ * Xuất cấu hình OrcaSlicer Preset (.json) từ Session hoặc Profile
+ */
+export function generateOrcaSlicerPresetJson(session: any): string {
+  const s_id = String(session?.sessionId || '01');
+  const slicer = session?.slicer || {};
+  const hw = session?.hardware || {};
+  const meta = session?.metadata || {};
+
+  const lh = Number(slicer.layerHeightMm || 0.20);
+  const inf_pct = Number(slicer.infillPercent || 15);
+  const inf_type = String(slicer.infillType || 'gyroid').toLowerCase();
+  const wall_loops = Number(slicer.wallLoops || 3);
+  const top_layers = Number(slicer.topBottomLayers?.top || 4);
+  const bot_layers = Number(slicer.topBottomLayers?.bottom || 3);
+  const sup_type = String(slicer.supportType || 'Tree').toLowerCase();
+  const enable_sup = sup_type !== 'none' && sup_type !== 'off' && sup_type !== 'tắt';
+  const sup_angle = Number(slicer.supportOverhangAngle || 45);
+
+  const speed_def = Number(hw.speedF?.defaultMmS || 250);
+  const speed_wall = Number(hw.speedF?.wallMmS || 150);
+  const speed_inf = Number(hw.speedF?.infillMmS || 275);
+
+  const bed_t = Number(hw.tempsE?.bedTempC || 55);
+  const noz_t = Number(hw.tempsE?.nozzleTempC || 220);
+  const fan_pct = Number(hw.tempsE?.fanSpeedPercent || 100);
+
+  const flow = Number(hw.extrusion?.flowRatio || 0.98);
+  const ret_mm = Number(hw.extrusion?.retractionMm || 0.8);
+  const zh_mm = Number(hw.extrusion?.zHopMm || 0.4);
+
+  const mat = String(meta.material || 'PLA').toUpperCase();
+  const model = String(meta.modelName || `Model_${s_id}`);
+
+  const preset = {
+    type: 'process',
+    name: `CoreXY Pro - ${model} (${mat} ${lh}mm)`,
+    from: 'system',
+    inherits: '0.20mm Standard @BBL X1C',
+    version: '2.2.0.0',
+    setting_id: `corexy_process_${s_id}`,
+    process_settings: {
+      layer_height: String(lh),
+      initial_layer_print_height: String(Number(Math.max(0.16, lh * 1.2).toFixed(2))),
+      sparse_infill_density: `${inf_pct}%`,
+      sparse_infill_pattern: inf_type,
+      wall_loops: String(wall_loops),
+      top_shell_layers: String(top_layers),
+      bottom_shell_layers: String(bot_layers),
+      enable_support: enable_sup ? '1' : '0',
+      support_type: sup_type.includes('tree') ? 'tree(auto)' : 'normal(auto)',
+      support_threshold_angle: String(sup_angle),
+      outer_wall_speed: String(speed_wall),
+      inner_wall_speed: String(Math.round(speed_wall * 1.3)),
+      sparse_infill_speed: String(speed_inf),
+      travel_speed: '500',
+      default_print_speed: String(speed_def),
+      reduce_fan_stop_start_freq: '1',
+    },
+    filament_settings: {
+      filament_type: [mat],
+      filament_flow_ratio: [String(flow)],
+      filament_retraction_length: [String(ret_mm)],
+      filament_z_hop: [String(zh_mm)],
+      nozzle_temperature: [String(Math.round(noz_t))],
+      nozzle_temperature_initial_layer: [String(Math.round(noz_t + 5))],
+      hot_plate_temp: [String(Math.round(bed_t))],
+      hot_plate_temp_initial_layer: [String(Math.round(bed_t + 5))],
+      fan_cooling_layer_time: [String(Math.round(60 * (100 / Math.max(1, fan_pct))))],
+    },
+    metadata: {
+      source: '3D PrintSim Pro Telemetry Engine',
+      session_id: s_id,
+      qc_score: meta.printabilityScore || 95,
+      schema_version: 'v2026.1',
+    },
+  };
+
+  return JSON.stringify(preset, null, 2);
+}
+
+/**
+ * Xuất cấu hình Bambu Studio Preset (.json) từ Session hoặc Profile
+ */
+export function generateBambuLabPresetJson(session: any): string {
+  const s_id = String(session?.sessionId || '01');
+  const slicer = session?.slicer || {};
+  const hw = session?.hardware || {};
+  const meta = session?.metadata || {};
+
+  const lh = Number(slicer.layerHeightMm || 0.20);
+  const inf_pct = Number(slicer.infillPercent || 15);
+  const inf_type = String(slicer.infillType || 'gyroid').toLowerCase();
+  const wall_loops = Number(slicer.wallLoops || 3);
+  const top_layers = Number(slicer.topBottomLayers?.top || 4);
+  const bot_layers = Number(slicer.topBottomLayers?.bottom || 3);
+  const sup_type = String(slicer.supportType || 'Tree').toLowerCase();
+  const enable_sup = sup_type !== 'none' && sup_type !== 'off' && sup_type !== 'tắt';
+  const sup_angle = Number(slicer.supportOverhangAngle || 45);
+
+  const speed_def = Number(hw.speedF?.defaultMmS || 250);
+  const speed_wall = Number(hw.speedF?.wallMmS || 150);
+  const speed_inf = Number(hw.speedF?.infillMmS || 275);
+
+  const bed_t = Number(hw.tempsE?.bedTempC || 55);
+  const noz_t = Number(hw.tempsE?.nozzleTempC || 220);
+  const fan_pct = Number(hw.tempsE?.fanSpeedPercent || 100);
+
+  const flow = Number(hw.extrusion?.flowRatio || 0.98);
+  const ret_mm = Number(hw.extrusion?.retractionMm || 0.8);
+  const zh_mm = Number(hw.extrusion?.zHopMm || 0.4);
+
+  const mat = String(meta.material || 'PLA').toUpperCase();
+  const model = String(meta.modelName || `Model_${s_id}`);
+
+  const preset = {
+    version: '1.8.4.51',
+    name: `Bambu Lab - ${model} (${mat})`,
+    setting_id: `bambu_corexy_${s_id}`,
+    inherits: 'fdm_process_common',
+    layer_height: String(lh),
+    initial_layer_print_height: String(Number(Math.max(0.16, lh * 1.2).toFixed(2))),
+    wall_loops: String(wall_loops),
+    top_shell_layers: String(top_layers),
+    bottom_shell_layers: String(bot_layers),
+    sparse_infill_density: `${inf_pct}%`,
+    sparse_infill_pattern: inf_type,
+    enable_support: enable_sup ? '1' : '0',
+    support_type: sup_type.includes('tree') ? 'tree_hybrid' : 'normal',
+    support_threshold_angle: String(sup_angle),
+    initial_layer_speed: '50',
+    outer_wall_speed: String(speed_wall),
+    inner_wall_speed: String(Math.round(speed_wall * 1.33)),
+    sparse_infill_speed: String(speed_inf),
+    travel_speed: '500',
+    default_print_speed: String(speed_def),
+    nozzle_temperature: String(Math.round(noz_t)),
+    hot_plate_temp: String(Math.round(bed_t)),
+    fan_cooling_percent: String(fan_pct),
+    flow_ratio: String(flow),
+    retraction_length: String(ret_mm),
+    z_hop: String(zh_mm),
+    print_sequence: 'by layer',
+    notes: `Generated by 3D PrintSim Pro Telemetry Engine for Session #${s_id}. QC: ${meta.printabilityScore || 95}/100.`,
+  };
+
+  return JSON.stringify(preset, null, 2);
+}
+
+/**
+ * Xuất cấu hình PrusaSlicer Preset (.ini) từ Session hoặc Profile
+ */
+export function generatePrusaSlicerPresetIni(session: any): string {
+  const s_id = String(session?.sessionId || '01');
+  const slicer = session?.slicer || {};
+  const hw = session?.hardware || {};
+  const meta = session?.metadata || {};
+
+  const lh = Number(slicer.layerHeightMm || 0.20);
+  const inf_pct = Number(slicer.infillPercent || 15);
+  const inf_type = String(slicer.infillType || 'gyroid').toLowerCase();
+  const wall_loops = Number(slicer.wallLoops || 3);
+  const top_layers = Number(slicer.topBottomLayers?.top || 4);
+  const bot_layers = Number(slicer.topBottomLayers?.bottom || 3);
+  const sup_type = String(slicer.supportType || 'Tree').toLowerCase();
+  const enable_sup = sup_type !== 'none' && sup_type !== 'off' && sup_type !== 'tắt';
+  const sup_angle = Number(slicer.supportOverhangAngle || 45);
+
+  const speed_def = Number(hw.speedF?.defaultMmS || 250);
+  const speed_wall = Number(hw.speedF?.wallMmS || 150);
+  const speed_inf = Number(hw.speedF?.infillMmS || 275);
+
+  const bed_t = Number(hw.tempsE?.bedTempC || 55);
+  const noz_t = Number(hw.tempsE?.nozzleTempC || 220);
+  const fan_pct = Number(hw.tempsE?.fanSpeedPercent || 100);
+
+  const flow = Number(hw.extrusion?.flowRatio || 0.98);
+  const ret_mm = Number(hw.extrusion?.retractionMm || 0.8);
+  const zh_mm = Number(hw.extrusion?.zHopMm || 0.4);
+
+  const mat = String(meta.material || 'PLA').toUpperCase();
+  const model = String(meta.modelName || `Model_${s_id}`);
+
+  const lines = [
+    `# PrusaSlicer Config Profile - ${model} (${mat})`,
+    `# Generated by 3D PrintSim Pro Telemetry Engine - Session #${s_id}`,
+    `# QC Printability Score: ${meta.printabilityScore || 95}/100`,
+    ``,
+    `# [Print Settings]`,
+    `layer_height = ${lh}`,
+    `first_layer_height = ${Number(Math.max(0.16, lh * 1.2).toFixed(2))}`,
+    `perimeters = ${wall_loops}`,
+    `top_solid_layers = ${top_layers}`,
+    `bottom_solid_layers = ${bot_layers}`,
+    `fill_density = ${inf_pct}%`,
+    `fill_pattern = ${inf_type}`,
+    `support_material = ${enable_sup ? '1' : '0'}`,
+    `support_material_threshold = ${sup_angle}`,
+    `perimeter_speed = ${speed_wall}`,
+    `small_perimeter_speed = ${Math.round(speed_wall * 0.7)}`,
+    `external_perimeter_speed = ${Math.round(speed_wall * 0.8)}`,
+    `infill_speed = ${speed_inf}`,
+    `solid_infill_speed = ${Math.round(speed_inf * 0.9)}`,
+    `travel_speed = 500`,
+    `default_speed = ${speed_def}`,
+    ``,
+    `# [Filament Settings]`,
+    `filament_type = ${mat}`,
+    `temperature = ${Math.round(noz_t)}`,
+    `first_layer_temperature = ${Math.round(noz_t + 5)}`,
+    `bed_temperature = ${Math.round(bed_t)}`,
+    `first_layer_bed_temperature = ${Math.round(bed_t + 5)}`,
+    `fan_below_layer_time = ${Math.round(60 * (100 / Math.max(1, fan_pct)))}`,
+    `extrusion_multiplier = ${flow}`,
+    ``,
+    `# [Printer Extrusion Settings]`,
+    `retract_length = ${ret_mm}`,
+    `retract_lift = ${zh_mm}`,
+    `retract_speed = 40`,
+  ];
+
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Xuất cấu hình Ultimaker Cura (.curaprofile) từ Session hoặc Profile
+ */
+export function generateCuraPresetFile(session: any): string {
+  const s_id = String(session?.sessionId || '01');
+  const slicer = session?.slicer || {};
+  const hw = session?.hardware || {};
+  const meta = session?.metadata || {};
+
+  const lh = Number(slicer.layerHeightMm || 0.20);
+  const inf_pct = Number(slicer.infillPercent || 15);
+  const inf_type = String(slicer.infillType || 'gyroid').toLowerCase();
+  const wall_loops = Number(slicer.wallLoops || 3);
+  const top_layers = Number(slicer.topBottomLayers?.top || 4);
+  const bot_layers = Number(slicer.topBottomLayers?.bottom || 3);
+  const sup_type = String(slicer.supportType || 'Tree').toLowerCase();
+  const enable_sup = sup_type !== 'none' && sup_type !== 'off' && sup_type !== 'tắt';
+
+  const speed_def = Number(hw.speedF?.defaultMmS || 250);
+  const speed_wall = Number(hw.speedF?.wallMmS || 150);
+  const speed_inf = Number(hw.speedF?.infillMmS || 275);
+
+  const bed_t = Number(hw.tempsE?.bedTempC || 55);
+  const noz_t = Number(hw.tempsE?.nozzleTempC || 220);
+  const fan_pct = Number(hw.tempsE?.fanSpeedPercent || 100);
+
+  const ret_mm = Number(hw.extrusion?.retractionMm || 0.8);
+  const zh_mm = Number(hw.extrusion?.zHopMm || 0.4);
+
+  const mat = String(meta.material || 'PLA').toUpperCase();
+  const model = String(meta.modelName || `Model_${s_id}`);
+
+  const lines = [
+    `[general]`,
+    `version = 4`,
+    `name = CoreXY Pro - ${model} (${mat})`,
+    `definition = fdmprinter`,
+    ``,
+    `[metadata]`,
+    `type = quality_changes`,
+    `quality_type = standard`,
+    `intent_category = default`,
+    ``,
+    `[values]`,
+    `layer_height = ${lh}`,
+    `layer_height_0 = ${Number(Math.max(0.16, lh * 1.2).toFixed(2))}`,
+    `wall_line_count = ${wall_loops}`,
+    `top_layers = ${top_layers}`,
+    `bottom_layers = ${bot_layers}`,
+    `infill_sparse_density = ${inf_pct}`,
+    `infill_pattern = ${inf_type}`,
+    `speed_print = ${speed_def}`,
+    `speed_wall_0 = ${speed_wall}`,
+    `speed_infill = ${speed_inf}`,
+    `material_print_temperature = ${Math.round(noz_t)}`,
+    `material_bed_temperature = ${Math.round(bed_t)}`,
+    `cool_fan_speed = ${fan_pct}`,
+    `retraction_amount = ${ret_mm}`,
+    `retraction_hop = ${zh_mm}`,
+    `support_enable = ${enable_sup ? 'True' : 'False'}`,
+    `support_structure = ${sup_type.includes('tree') ? 'tree' : 'normal'}`,
+  ];
+
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Tạo file CSV UTF-8 with BOM chứa toàn bộ 23 tham số và các phiên in
+ */
+export function generateTelemetryCsv(sessions: any[]): string {
+  const header = [
+    'Mã Phiên',
+    'Tên Mô Hình',
+    'Vật Liệu',
+    'Độ Cao Lớp (mm)',
+    'Mật Độ Ruột (%)',
+    'Dạng Ruột',
+    'Số Vòng Tường',
+    'Lớp Nóc/Đáy',
+    'Dạng Support',
+    'Tốc Độ In (mm/s)',
+    'Tốc Độ Vách (mm/s)',
+    'Tốc Độ Ruột (mm/s)',
+    'Nhiệt Bàn (°C)',
+    'Nhiệt Đầu Phun (°C)',
+    'Quạt (%)',
+    'Hệ Số Đùn',
+    'Rút Sợi (mm)',
+    'Nhấc Z (mm)',
+    'Thời Gian (phút)',
+    'Lượng Nhựa (g)',
+    'Điểm QC',
+    'Người Thực Hiện',
+    'Thời Gian Ghi Nhận',
+  ];
+
+  const rows = sessions.map((s) => [
+    `"${s.sessionId || s.id || ''}"`,
+    `"${s.metadata?.modelName || s.modelName || ''}"`,
+    `"${s.metadata?.material || s.material || ''}"`,
+    s.slicer?.layerHeightMm ?? s.layerHeight ?? '',
+    s.slicer?.infillPercent ?? s.infillDensity ?? '',
+    `"${s.slicer?.infillType || s.infillType || ''}"`,
+    s.slicer?.wallLoops ?? '',
+    `"${s.slicer?.topBottomLayers?.top || 4}/${s.slicer?.topBottomLayers?.bottom || 3}"`,
+    `"${s.slicer?.supportType || s.supportMode || ''}"`,
+    s.hardware?.speedF?.defaultMmS ?? s.printSpeed ?? '',
+    s.hardware?.speedF?.wallMmS ?? '',
+    s.hardware?.speedF?.infillMmS ?? '',
+    s.hardware?.tempsE?.bedTempC ?? s.bedTemp ?? '',
+    s.hardware?.tempsE?.nozzleTempC ?? s.nozzleTemp ?? '',
+    s.hardware?.tempsE?.fanSpeedPercent ?? '',
+    s.hardware?.extrusion?.flowRatio ?? '',
+    s.hardware?.extrusion?.retractionMm ?? '',
+    s.hardware?.extrusion?.zHopMm ?? '',
+    s.durationMinutes ?? (s.estimatedTimeSec ? Math.round(s.estimatedTimeSec / 60) : ''),
+    s.metadata?.filamentGrams ?? s.filamentGrams ?? '',
+    s.metadata?.printabilityScore ?? s.score ?? '',
+    `"${s.operator || 'Kỹ sư in 3D'}"`,
+    `"${s.startedAt || s.timestamp || ''}"`,
+  ]);
+
+  // \uFEFF là UTF-8 BOM giúp Excel tự động hiển thị tiếng Việt có dấu chuẩn 100%
+  return '\uFEFF' + [header.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+}

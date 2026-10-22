@@ -101,6 +101,26 @@ export const PRESET_PROFILES: ISimulationProfile[] = [
     flowRateMm3s: 6,
     retractionDistanceMm: 0.4,
   },
+  {
+    id: 'abs-engineering',
+    name: 'High-Temp Engineering (ABS 0.20mm)',
+    description: 'Chịu nhiệt 100°C và chống va đập công nghiệp. Yêu cầu bàn in 100°C và buồng in kín.',
+    layerHeight: 0.2,
+    infillType: 'gyroid',
+    infillDensity: 20,
+    wallLoops: 4,
+    printSpeed: 200,
+    nozzleTemp: 255,
+    bedTemp: 100,
+    material: 'ABS',
+    materialColor: '#F97316', // ABS Orange
+    supportMode: 'normal',
+    brimEnabled: true,
+    brimWidthMm: 8,
+    coolingFanSpeed: 20,
+    flowRateMm3s: 20,
+    retractionDistanceMm: 0.8,
+  },
 ];
 
 export const MATERIAL_PALETTE: { [key in ISimulationProfile['material']]: string[] } = {

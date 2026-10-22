@@ -18,6 +18,14 @@ import {
 } from '@/services/telemetryService';
 import { ISimulationProfile } from '@/types/simulator';
 import { ISimulationLogEntry } from '@/components/controls/SimulationRunLogPanel';
+import { PRESET_PROFILES } from '@/services/presetProfiles';
+import {
+  generateOrcaSlicerPresetJson,
+  generateBambuLabPresetJson,
+  generatePrusaSlicerPresetIni,
+  generateCuraPresetFile,
+  generateTelemetryCsv,
+} from '@/services/slicerExporter';
 import {
   IconTerminal,
   IconSliders,
@@ -138,11 +146,50 @@ export function LiveReportInspectorModal({
     }
     setIsComparing(true);
     const res = await compareSessions(otherId, generatedSessionJson.sessionId);
-    setComparisonResult(res);
+    if (res) {
+      setComparisonResult(res);
+    } else {
+      // Tính toán so sánh cục bộ (Client-side Fallback) khi Backend offline
+      const targetLog = simulationLogs.find(
+        (l) => String(l.runNumber).padStart(2, '0') === otherId || l.id === otherId
+      );
+      const targetScore = targetLog ? targetLog.score : 85;
+      const targetDuration = targetLog ? Math.max(1, Math.round(targetLog.estimatedTimeSec / 60)) : 10;
+      const targetFilament = targetLog ? targetLog.filamentGrams : 18.5;
+
+      const scoreDelta = generatedSessionJson.metadata.printabilityScore - targetScore;
+      const timeDelta = generatedSessionJson.durationMinutes - targetDuration;
+      const filDelta = Number((generatedSessionJson.metadata.filamentGrams - targetFilament).toFixed(1));
+
+      const verdict =
+        scoreDelta >= 0
+          ? `Phiên #${generatedSessionJson.sessionId} cải thiện +${scoreDelta}đ QC và ${
+              timeDelta <= 0 ? 'rút ngắn' : 'tăng'
+            } ${Math.abs(timeDelta)} phút so với Phiên #${otherId}.`
+          : `Phiên #${generatedSessionJson.sessionId} thấp hơn ${Math.abs(
+              scoreDelta
+            )}đ QC so với Phiên #${otherId}, cần tối ưu lại tốc độ hoặc nhiệt bàn.`;
+
+      setComparisonResult({
+        base_session_id: otherId,
+        target_session_id: generatedSessionJson.sessionId,
+        score_delta: scoreDelta,
+        duration_delta_minutes: timeDelta,
+        filament_delta_grams: filDelta,
+        verdict_badge: scoreDelta >= 0 ? '🟢 CẢI THIỆN ĐẠT CHUẨN' : '🟡 CẦN TỐI ƯU THÊM',
+        verdict_summary: verdict,
+        markdown_filename: `Comparison_${otherId}_vs_${generatedSessionJson.sessionId}.md`,
+        markdown: `# Báo Cáo So Sánh Đối Chiếu Phiên #${otherId} vs #${generatedSessionJson.sessionId}\n\n- Chênh lệch điểm QC: ${
+          scoreDelta >= 0 ? '+' : ''
+        }${scoreDelta}\n- Chênh lệch thời gian: ${
+          timeDelta >= 0 ? '+' : ''
+        }${timeDelta} phút\n- Chênh lệch nhựa: ${filDelta >= 0 ? '+' : ''}${filDelta} g\n\n> 💡 ${verdict}\n`,
+      });
+    }
     setIsComparing(false);
   };
   
-  // Nguồn tham số được chọn: 'live' (Studio trực tiếp) hoặc ID của bản ghi Nhật ký mô phỏng
+  // Nguồn tham số được chọn: 'live' (Studio trực tiếp), 'preset:<id>' (Hồ sơ mẫu chuẩn), hoặc ID bản ghi Nhật ký mô phỏng
   const [selectedSourceId, setSelectedSourceId] = useState<string>('live');
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
@@ -165,15 +212,23 @@ export function LiveReportInspectorModal({
 
   // Tìm bản ghi log được chọn (nếu có)
   const selectedLog = useMemo(() => {
-    if (selectedSourceId === 'live') return null;
+    if (selectedSourceId === 'live' || selectedSourceId.startsWith('preset:')) return null;
     return simulationLogs.find((l) => l.id === selectedSourceId) || null;
   }, [selectedSourceId, simulationLogs]);
 
-  // Profile đang được thanh tra (lấy từ snapshot của log hoặc live profile)
+  // Tìm Preset được chọn (nếu có, dạng 'preset:<id>')
+  const selectedPreset = useMemo(() => {
+    if (!selectedSourceId.startsWith('preset:')) return null;
+    const pId = selectedSourceId.replace('preset:', '');
+    return PRESET_PROFILES.find((p) => p.id === pId) || null;
+  }, [selectedSourceId]);
+
+  // Profile đang được thanh tra (lấy từ snapshot của log, preset mẫu, hoặc live profile)
   const activeProfile = useMemo(() => {
     if (selectedLog) return selectedLog.profileSnapshot;
+    if (selectedPreset) return selectedPreset;
     return currentProfile;
-  }, [selectedLog, currentProfile]);
+  }, [selectedLog, selectedPreset, currentProfile]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -192,7 +247,7 @@ export function LiveReportInspectorModal({
     if (isOpen) {
       loadData();
     }
-  }, [isOpen, activeProfile, selectedLog]);
+  }, [isOpen, activeProfile, selectedLog, selectedPreset]);
 
   // Tính số lần biến đổi qua các bản ghi Nhật Ký Mô Phỏng
   const churnMap = useMemo(() => {
@@ -293,17 +348,40 @@ export function LiveReportInspectorModal({
     ];
   }, [activeProfile, currentProfile, churnMap]);
 
-  // Tạo JSON Session mẫu theo Locked Schema
+  // Tạo JSON Session mẫu theo Locked Schema (linh hoạt theo Live, Log hoặc Preset)
   const generatedSessionJson = useMemo(() => {
-    const runNum = selectedLog
-      ? selectedLog.runNumber
-      : (simulationLogs.length > 0 ? simulationLogs[simulationLogs.length - 1].runNumber + 1 : 1);
-    const durMin = selectedLog ? Math.max(1, Math.round(selectedLog.estimatedTimeSec / 60)) : 7;
-    const timeStr = selectedLog ? selectedLog.timestamp : new Date().toTimeString().slice(0, 8);
-    const scoreVal = selectedLog ? selectedLog.score : 100;
+    let sId = '01';
+    let modelName = 'Mô hình hiện tại';
+    let durMin = 7;
+    let timeStr = new Date().toTimeString().slice(0, 8);
+    let scoreVal = 95;
+    let filamentGrams = 17.3;
+    let totalLayers = Math.max(10, Math.round(46.8 / Math.max(0.04, activeProfile.layerHeight)));
+    let triggerLabel = 'Live Profile Studio';
+
+    if (selectedLog) {
+      sId = String(selectedLog.runNumber).padStart(2, '0');
+      modelName = selectedLog.modelName;
+      durMin = Math.max(1, Math.round(selectedLog.estimatedTimeSec / 60));
+      timeStr = selectedLog.timestamp;
+      scoreVal = selectedLog.score;
+      filamentGrams = selectedLog.filamentGrams;
+      totalLayers = selectedLog.totalLayers;
+      triggerLabel = selectedLog.triggerLabel;
+    } else if (selectedPreset) {
+      sId = selectedPreset.name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 14).toUpperCase();
+      modelName = `Mẫu ${selectedPreset.material} (CoreXY)`;
+      durMin = activeProfile.layerHeight <= 0.1 ? 22 : activeProfile.layerHeight >= 0.28 ? 4 : 8;
+      scoreVal = activeProfile.material === 'ABS' && activeProfile.bedTemp < 90 ? 45 : 98;
+      filamentGrams = activeProfile.infillDensity >= 25 ? 24.8 : activeProfile.infillDensity <= 10 ? 11.2 : 17.3;
+      totalLayers = Math.max(10, Math.round(46.8 / Math.max(0.04, activeProfile.layerHeight)));
+      triggerLabel = selectedPreset.name;
+    } else {
+      sId = simulationLogs.length > 0 ? String(simulationLogs[0].runNumber + 1).padStart(2, '0') : '01';
+    }
 
     return {
-      sessionId: String(runNum).padStart(2, '0'),
+      sessionId: sId,
       operator: 'Kỹ sư in 3D (CoreXY)',
       startedAt: `${new Date().toISOString().slice(0, 10)} ${timeStr}`,
       durationMinutes: durMin,
@@ -312,7 +390,7 @@ export function LiveReportInspectorModal({
         layerHeightMm: activeProfile.layerHeight,
         infillPercent: activeProfile.infillDensity,
         infillType: activeProfile.infillType,
-        wallLoops: activeProfile.wallLoops || 2,
+        wallLoops: activeProfile.wallLoops || 3,
         topBottomLayers: {
           top: activeProfile.topShellLayers || 4,
           bottom: activeProfile.bottomShellLayers || 3,
@@ -323,30 +401,30 @@ export function LiveReportInspectorModal({
       hardware: {
         speedF: {
           defaultMmS: activeProfile.printSpeed,
-          wallMmS: activeProfile.outerWallSpeed || 150,
-          infillMmS: activeProfile.infillSpeed || 275,
+          wallMmS: activeProfile.outerWallSpeed || Math.round(activeProfile.printSpeed * 0.6),
+          infillMmS: activeProfile.infillSpeed || Math.round(activeProfile.printSpeed * 1.1),
         },
         tempsE: {
           bedTempC: activeProfile.bedTemp,
           nozzleTempC: activeProfile.nozzleTemp,
-          fanSpeedPercent: activeProfile.coolingFanSpeed || 100,
+          fanSpeedPercent: activeProfile.coolingFanSpeed ?? 100,
         },
         extrusion: {
-          flowRatio: activeProfile.flowRateMm3s ? Number((activeProfile.flowRateMm3s / 15).toFixed(2)) : 0.98,
+          flowRatio: activeProfile.flowRateMm3s ? Number((activeProfile.flowRateMm3s / 18).toFixed(2)) : 0.98,
           retractionMm: activeProfile.retractionDistanceMm || 0.8,
           zHopMm: activeProfile.zHopMm || 0.4,
         },
       },
       metadata: {
-        modelName: selectedLog ? selectedLog.modelName : 'Mô hình hiện tại',
+        modelName,
         material: activeProfile.material,
         printabilityScore: scoreVal,
-        filamentGrams: selectedLog ? selectedLog.filamentGrams : 17.3,
-        totalLayers: selectedLog ? selectedLog.totalLayers : 234,
-        triggerLabel: selectedLog ? selectedLog.triggerLabel : 'Live Profile',
+        filamentGrams,
+        totalLayers,
+        triggerLabel,
       },
     };
-  }, [selectedLog, activeProfile]);
+  }, [selectedLog, selectedPreset, activeProfile, simulationLogs]);
 
   // Tạo Markdown Table mẫu cho Obsidian Vault
   const generatedMarkdownTable = useMemo(() => {
@@ -356,11 +434,8 @@ export function LiveReportInspectorModal({
 | ${s.sessionId} | - | ${s.operator} | ${s.startedAt} (${s.durationMinutes} phút) | ${s.status === 'COMPLETED' ? 'Hoàn tất' : 'Lỗi Warping'} | Điểm QC: ${s.metadata.printabilityScore}/100 (${s.metadata.triggerLabel}) | ${s.slicer.layerHeightMm.toFixed(2)} | ${s.slicer.infillPercent}% (${s.slicer.infillType}) | ${s.slicer.wallLoops} vòng | ${s.slicer.topBottomLayers.top} / ${s.slicer.topBottomLayers.bottom} | ${s.slicer.supportType} (${s.slicer.supportOverhangAngle}°) | ${s.hardware.speedF.defaultMmS} | ${s.hardware.speedF.wallMmS} • ${s.hardware.speedF.infillMmS} | ${s.hardware.tempsE.bedTempC} | ${s.hardware.tempsE.nozzleTempC} • ${s.hardware.tempsE.fanSpeedPercent}% | ${s.hardware.extrusion.flowRatio} • ${s.hardware.extrusion.retractionMm} • ${s.hardware.extrusion.zHopMm} | - |`;
   }, [generatedSessionJson]);
 
-  // Tạo Hồ Sơ In 3D (3D Print Profile) theo chuẩn Obsidian 01_Profiles_In3D
+  // Tạo Hồ Sơ In 3D (3D Print Profile) theo chuẩn Obsidian 01_Profiles_In3D - Luôn sinh động theo đúng Profile được chọn
   const generatedProfile3DMarkdown = useMemo(() => {
-    if (reportData?.profile_3d_markdown) {
-      return reportData.profile_3d_markdown;
-    }
     const s = generatedSessionJson;
     const lh = s.slicer.layerHeightMm;
     const inf = s.slicer.infillPercent;
@@ -573,26 +648,39 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 onChange={(e) => setSelectedSourceId(e.target.value)}
                 className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-lg px-3 py-1.5 text-xs font-mono font-medium studio-text-primary focus:outline-none focus:border-[var(--accent-gold)] cursor-pointer flex-1 max-w-lg truncate shadow-sm"
               >
-                <option value="live" className="bg-[var(--bg-panel)] text-[var(--text-primary)] py-1.5 px-2">⚡ Live Profile Studio (Đang chỉnh trên giao diện)</option>
-                {simulationLogs.map((log) => (
-                  <option key={log.id} value={log.id} className="bg-[var(--bg-panel)] text-[var(--text-primary)] py-1.5 px-2">
-                    📜 #{String(log.runNumber).padStart(2, '0')}: {log.triggerLabel} ({log.material} • {log.timestamp} • {log.score}đ)
-                  </option>
-                ))}
+                <option value="live" className="bg-[var(--bg-panel)] text-[var(--text-primary)] py-1.5 px-2 font-bold">
+                  ⚡ Live Profile Studio (Đang chỉnh trên giao diện)
+                </option>
+                {simulationLogs.length > 0 && (
+                  <optgroup label="📜 Nhật Ký Mô Phỏng & Sự Kiện" className="bg-[var(--bg-panel)] text-[var(--text-primary)]">
+                    {simulationLogs.map((log) => (
+                      <option key={log.id} value={log.id} className="bg-[var(--bg-panel)] text-[var(--text-primary)] py-1.5 px-2">
+                        📜 #{String(log.runNumber).padStart(2, '0')}: {log.triggerLabel} ({log.material} • {log.timestamp} • {log.score}đ)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="🎨 Hồ Sơ In Mẫu Chuẩn (Preset Profiles)" className="bg-[var(--bg-panel)] text-[var(--text-primary)]">
+                  {PRESET_PROFILES.map((p) => (
+                    <option key={p.id} value={`preset:${p.id}`} className="bg-[var(--bg-panel)] text-[var(--text-primary)] py-1.5 px-2">
+                      🎨 {p.name} ({p.material} • {p.layerHeight}mm • {p.printSpeed}mm/s)
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 
             {/* Actions cho bản ghi / profile */}
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              {selectedLog && onRestoreProfile && (
+              {onRestoreProfile && (
                 <button
                   onClick={() => {
-                    onRestoreProfile(selectedLog.profileSnapshot);
-                    setSyncStatus('✓ Đã nạp Profile này ra Studio!');
-                    setTimeout(() => setSyncStatus(null), 3000);
+                    onRestoreProfile(activeProfile);
+                    setSyncStatus(`✓ Đã nạp Profile "${generatedSessionJson.metadata.triggerLabel}" ra Studio!`);
+                    setTimeout(() => setSyncStatus(null), 3500);
                   }}
-                  className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
-                  title="Nạp bộ thông số của bản ghi này làm Profile chính trên bàn in 3D"
+                  className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  title="Nạp bộ thông số này làm Profile chính trên bàn in 3D Studio"
                 >
                   <IconReset size={12} />
                   <span>Nạp Ra Studio</span>
@@ -628,7 +716,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
             </div>
           )}
 
-          {/* Banner thông tin chi tiết của bản ghi đang chọn */}
+          {/* Banner thông tin chi tiết của bản ghi/preset đang chọn */}
           {selectedLog ? (
             <div className="pt-2 border-t studio-border flex items-center justify-between flex-wrap gap-2 text-xs">
               <div className="flex items-center gap-2 flex-wrap">
@@ -654,6 +742,20 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <span>⚖ {selectedLog.filamentGrams.toFixed(1)}g</span>
                 <span>•</span>
                 <span>L{selectedLog.totalLayers}</span>
+              </div>
+            </div>
+          ) : selectedPreset ? (
+            <div className="pt-2 border-t studio-border flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold font-mono text-xs studio-text-gold">
+                  Hồ Sơ Mẫu: {selectedPreset.name}
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 font-semibold">
+                  {selectedPreset.material} • {selectedPreset.layerHeight}mm • {selectedPreset.printSpeed}mm/s
+                </span>
+                <span className="text-[10px] studio-text-muted">
+                  {selectedPreset.description}
+                </span>
               </div>
             </div>
           ) : (
@@ -932,11 +1034,14 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   <span className="studio-text-muted px-1.5 font-mono font-semibold">Xuất Slicer:</span>
                   <button
                     onClick={async () => {
+                      setSyncStatus('🦈 Đang xuất OrcaSlicer Profile (.json)...');
                       const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'orcaslicer');
-                      if (ok) {
-                        setSyncStatus('🦈 Đã tải OrcaSlicer Profile (.json)!');
-                        setTimeout(() => setSyncStatus(null), 3000);
+                      if (!ok) {
+                        const jsonStr = generateOrcaSlicerPresetJson(generatedSessionJson);
+                        downloadFile(`OrcaSlicer_Profile_${generatedSessionJson.sessionId}.json`, jsonStr, 'application/json');
                       }
+                      setSyncStatus(`✓ Đã tải OrcaSlicer Profile (${generatedSessionJson.sessionId})!`);
+                      setTimeout(() => setSyncStatus(null), 3500);
                     }}
                     className="px-2 py-1 rounded bg-sky-500/15 dark:bg-sky-500/25 hover:bg-sky-500/30 text-sky-800 dark:text-sky-300 font-semibold cursor-pointer transition-all active:scale-95"
                     title="Xuất preset chuẩn OrcaSlicer v2.x (.json)"
@@ -945,11 +1050,14 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   </button>
                   <button
                     onClick={async () => {
+                      setSyncStatus('🐼 Đang xuất Bambu Studio Profile (.json)...');
                       const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'bambulab');
-                      if (ok) {
-                        setSyncStatus('🐼 Đã tải Bambu Studio Profile (.json)!');
-                        setTimeout(() => setSyncStatus(null), 3000);
+                      if (!ok) {
+                        const jsonStr = generateBambuLabPresetJson(generatedSessionJson);
+                        downloadFile(`BambuLab_Profile_${generatedSessionJson.sessionId}.json`, jsonStr, 'application/json');
                       }
+                      setSyncStatus(`✓ Đã tải Bambu Studio Profile (${generatedSessionJson.sessionId})!`);
+                      setTimeout(() => setSyncStatus(null), 3500);
                     }}
                     className="px-2 py-1 rounded bg-emerald-500/15 dark:bg-emerald-500/25 hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-semibold cursor-pointer transition-all active:scale-95"
                     title="Xuất preset chuẩn Bambu Studio (.json)"
@@ -958,11 +1066,14 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   </button>
                   <button
                     onClick={async () => {
+                      setSyncStatus('🟧 Đang xuất PrusaSlicer Profile (.ini)...');
                       const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'prusaslicer');
-                      if (ok) {
-                        setSyncStatus('🟧 Đã tải PrusaSlicer Profile (.ini)!');
-                        setTimeout(() => setSyncStatus(null), 3000);
+                      if (!ok) {
+                        const iniStr = generatePrusaSlicerPresetIni(generatedSessionJson);
+                        downloadFile(`PrusaSlicer_Profile_${generatedSessionJson.sessionId}.ini`, iniStr, 'text/plain');
                       }
+                      setSyncStatus(`✓ Đã tải PrusaSlicer Profile (${generatedSessionJson.sessionId})!`);
+                      setTimeout(() => setSyncStatus(null), 3500);
                     }}
                     className="px-2 py-1 rounded bg-amber-500/15 dark:bg-amber-500/25 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 font-semibold cursor-pointer transition-all active:scale-95"
                     title="Xuất preset cấu hình PrusaSlicer / SuperSlicer (.ini)"
@@ -971,11 +1082,14 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   </button>
                   <button
                     onClick={async () => {
+                      setSyncStatus('🌀 Đang xuất Ultimaker Cura Profile (.curaprofile)...');
                       const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'cura');
-                      if (ok) {
-                        setSyncStatus('🌀 Đã tải Ultimaker Cura Profile (.curaprofile)!');
-                        setTimeout(() => setSyncStatus(null), 3000);
+                      if (!ok) {
+                        const curaStr = generateCuraPresetFile(generatedSessionJson);
+                        downloadFile(`Cura_Profile_${generatedSessionJson.sessionId}.curaprofile`, curaStr, 'text/plain');
                       }
+                      setSyncStatus(`✓ Đã tải Ultimaker Cura Profile (${generatedSessionJson.sessionId})!`);
+                      setTimeout(() => setSyncStatus(null), 3500);
                     }}
                     className="px-2 py-1 rounded bg-blue-500/15 dark:bg-blue-500/25 hover:bg-blue-500/30 text-blue-800 dark:text-blue-300 font-semibold cursor-pointer transition-all active:scale-95"
                     title="Xuất preset cấu hình Ultimaker Cura (.curaprofile)"
@@ -996,30 +1110,38 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   </button>
                   <button
                     onClick={async () => {
+                      setSyncStatus('📊 Đang xuất bảng tính Excel...');
                       const ok = await downloadNhatKyExcel();
-                      if (ok) {
-                        setSyncStatus('📊 Đã tải bảng tính Excel (.xlsx) ma trận 23 tham số!');
-                        setTimeout(() => setSyncStatus(null), 3500);
-                      } else {
-                        setSyncStatus('❌ Không thể tải bảng tính Excel.');
-                        setTimeout(() => setSyncStatus(null), 3000);
+                      if (!ok) {
+                        const list = [
+                          generatedSessionJson,
+                          ...simulationLogs.filter((l) => String(l.runNumber).padStart(2, '0') !== generatedSessionJson.sessionId),
+                        ];
+                        const csvContent = generateTelemetryCsv(list);
+                        downloadFile(`Nhat_Ky_In_3D_${generatedSessionJson.sessionId}.csv`, csvContent, 'text/csv;charset=utf-8;');
                       }
+                      setSyncStatus('✓ Đã tải bảng tính 23 tham số (tương thích Excel)!');
+                      setTimeout(() => setSyncStatus(null), 3500);
                     }}
                     className="px-2.5 py-1.5 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
-                    title="Xuất toàn bộ ma trận 23 tham số & báo cáo QC ra file Microsoft Excel (.xlsx)"
+                    title="Xuất toàn bộ ma trận 23 tham số & báo cáo QC ra file Microsoft Excel (.xlsx / .csv)"
                   >
                     <span>📊 Xuất Excel</span>
                   </button>
                   <button
                     onClick={async () => {
+                      setSyncStatus('📄 Đang xuất tệp CSV...');
                       const ok = await downloadNhatKyCsv();
-                      if (ok) {
-                        setSyncStatus('📄 Đã tải tệp CSV (UTF-8 with BOM) 23 tham số!');
-                        setTimeout(() => setSyncStatus(null), 3500);
-                      } else {
-                        setSyncStatus('❌ Không thể tải tệp CSV.');
-                        setTimeout(() => setSyncStatus(null), 3000);
+                      if (!ok) {
+                        const list = [
+                          generatedSessionJson,
+                          ...simulationLogs.filter((l) => String(l.runNumber).padStart(2, '0') !== generatedSessionJson.sessionId),
+                        ];
+                        const csvContent = generateTelemetryCsv(list);
+                        downloadFile(`Nhat_Ky_In_3D_Sim_QC.csv`, csvContent, 'text/csv;charset=utf-8;');
                       }
+                      setSyncStatus('✓ Đã tải tệp CSV (UTF-8 with BOM) trực tiếp!');
+                      setTimeout(() => setSyncStatus(null), 3500);
                     }}
                     className="px-2.5 py-1.5 rounded-lg bg-teal-600/15 hover:bg-teal-600/25 text-teal-800 dark:text-teal-300 border border-teal-500/40 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
                     title="Xuất toàn bộ ma trận 23 tham số ra file CSV chuẩn UTF-8"
