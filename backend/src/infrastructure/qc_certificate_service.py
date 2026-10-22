@@ -1,4 +1,4 @@
-﻿"""
+"""
 Executive QC Certificate & Standalone HTML Report Generator.
 Renders a luxury, print-ready 3D printing simulation verification certificate
 with physical metrics, defect risk breakdown, and compliance seals.

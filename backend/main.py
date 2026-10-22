@@ -1,4 +1,4 @@
-﻿"""
+"""
 Main entry point for running the Telemetry & Audit Engine FastAPI server.
 """
 import os
@@ -16,9 +16,10 @@ if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
 import uvicorn
+from backend.src.infrastructure.config import settings
 from backend.src.presentation.api import create_app
 
 app = create_app()
 
 if __name__ == "__main__":
-    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host=settings.host, port=settings.port, reload=True)

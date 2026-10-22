@@ -1,4 +1,4 @@
-﻿"""
+"""
 Standard Hardware Printer Profiles & Physical Kinematic Constraints.
 Provides specifications for popular FDM 3D printers to validate simulation and QC bounds.
 """

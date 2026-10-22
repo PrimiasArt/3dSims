@@ -1,4 +1,4 @@
-﻿"""
+"""
 Auto-Remediation & Smart Parameter Tuning Engine.
 Automatically calculates and suggests optimal, physics-compliant 3D slicing parameters
 to eliminate defects, maximize layer adhesion, and respect hardware constraints.

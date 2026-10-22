@@ -1,4 +1,4 @@
-﻿"""
+"""
 AI Defect Prediction & Risk Heatmap Engine.
 Analyzes 3D slicing parameters, thermal dynamics, and kinematic stresses
 to calculate failure risk scores and actionable mitigation strategies.
