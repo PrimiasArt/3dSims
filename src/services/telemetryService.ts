@@ -378,6 +378,54 @@ export async function downloadSlicerPreset(sessionId: string, format: 'orcaslice
 }
 
 /**
+ * Tải về tệp bảng tính Excel (.xlsx) chứa toàn bộ ma trận 23 tham số và danh sách phiên in
+ */
+export async function downloadNhatKyExcel(): Promise<boolean> {
+  try {
+    const url = `${BACKEND_BASE_URL}/api/v1/nhat-ky/export/excel`;
+    const res = await fetch(url);
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = 'Nhat_Ky_In_3D_Sim_QC.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+    return true;
+  } catch (err) {
+    console.warn('[Telemetry Client] Lỗi tải file Excel:', err);
+    return false;
+  }
+}
+
+/**
+ * Tải về tệp CSV (UTF-8 with BOM) chứa ma trận 23 tham số và nhật ký in
+ */
+export async function downloadNhatKyCsv(): Promise<boolean> {
+  try {
+    const url = `${BACKEND_BASE_URL}/api/v1/nhat-ky/export/csv`;
+    const res = await fetch(url);
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = 'Nhat_Ky_In_3D_Sim_QC.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+    return true;
+  } catch (err) {
+    console.warn('[Telemetry Client] Lỗi tải file CSV:', err);
+    return false;
+  }
+}
+
+/**
  * So sánh đối chiếu toàn diện giữa 2 phiên in
  */
 export async function compareSessions(baseId: string, targetId: string): Promise<any | null> {

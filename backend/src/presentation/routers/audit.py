@@ -5,7 +5,7 @@ import json
 import base64
 from typing import Optional
 from fastapi import APIRouter, Depends, Path, HTTPException, status, Body
-from fastapi.responses import JSONResponse, PlainTextResponse, FileResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, FileResponse, Response
 from backend.src.application.dtos import GenerateDualAuditInput
 from backend.src.application.use_cases import GenerateDualAuditUseCase
 from backend.src.domain.exceptions import SessionNotFoundError
@@ -101,6 +101,72 @@ async def get_nhat_ky_markdown(vault: VaultStorageProtocol = Depends(get_vault))
     with open(md_path, "r", encoding="utf-8") as f:
         content = f.read()
     return PlainTextResponse(content, status_code=status.HTTP_200_OK)
+
+
+@router.get(
+    "/api/v1/nhat-ky/export/excel",
+    status_code=status.HTTP_200_OK,
+    tags=["Locked Schema Logs"],
+)
+async def export_nhat_ky_excel(vault: VaultStorageProtocol = Depends(get_vault)):
+    """Xuất toàn bộ ma trận tham số và danh sách phiên in ra tệp bảng tính Microsoft Excel (.xlsx) chuẩn."""
+    from backend.src.infrastructure.excel_exporter import generate_excel_report
+
+    json_path = vault._resolve_safe_path("nhat_ky_in.json")
+    sessions = []
+    if json_path.exists():
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    sessions = data.get("sessions") or data.get("chi_tiet_tung_phien") or []
+                elif isinstance(data, list):
+                    sessions = data
+        except Exception:
+            sessions = []
+
+    excel_bytes = generate_excel_report(sessions)
+    return Response(
+        content=excel_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": "attachment; filename=Nhat_Ky_In_3D_Sim_QC.xlsx",
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+    )
+
+
+@router.get(
+    "/api/v1/nhat-ky/export/csv",
+    status_code=status.HTTP_200_OK,
+    tags=["Locked Schema Logs"],
+)
+async def export_nhat_ky_csv(vault: VaultStorageProtocol = Depends(get_vault)):
+    """Xuất toàn bộ ma trận tham số và nhật ký in ra tệp CSV (chuẩn UTF-8 with BOM cho Excel tiếng Việt)."""
+    from backend.src.infrastructure.excel_exporter import generate_csv_report
+
+    json_path = vault._resolve_safe_path("nhat_ky_in.json")
+    sessions = []
+    if json_path.exists():
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    sessions = data.get("sessions") or data.get("chi_tiet_tung_phien") or []
+                elif isinstance(data, list):
+                    sessions = data
+        except Exception:
+            sessions = []
+
+    csv_text = generate_csv_report(sessions)
+    return Response(
+        content=csv_text.encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": "attachment; filename=Nhat_Ky_In_3D_Sim_QC.csv",
+            "Content-Type": "text/csv; charset=utf-8",
+        },
+    )
 
 
 @router.post(

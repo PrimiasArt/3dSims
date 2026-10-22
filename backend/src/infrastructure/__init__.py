@@ -17,6 +17,10 @@ from backend.src.infrastructure.slicer_exporter import (
     export_prusaslicer_profile,
     export_cura_profile,
 )
+from backend.src.infrastructure.excel_exporter import (
+    generate_excel_report,
+    generate_csv_report,
+)
 
 __all__ = [
     "SystemTimeProvider",
@@ -36,4 +40,6 @@ __all__ = [
     "export_bambulab_profile",
     "export_prusaslicer_profile",
     "export_cura_profile",
+    "generate_excel_report",
+    "generate_csv_report",
 ]

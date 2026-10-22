@@ -13,6 +13,8 @@ import {
   downloadSlicerPreset,
   compareSessions,
   uploadSessionThumbnail,
+  downloadNhatKyExcel,
+  downloadNhatKyCsv,
 } from '@/services/telemetryService';
 import { ISimulationProfile } from '@/types/simulator';
 import { ISimulationLogEntry } from '@/components/controls/SimulationRunLogPanel';
@@ -979,6 +981,38 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                     title="Chụp ảnh mô hình 3D thực tế, tải về máy và lưu vào Obsidian Vault Profile"
                   >
                     <span>{isCapturingThumb ? '⏳ Đang Chụp...' : '📸 Lưu Thumbnail'}</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const ok = await downloadNhatKyExcel();
+                      if (ok) {
+                        setSyncStatus('📊 Đã tải bảng tính Excel (.xlsx) ma trận 23 tham số!');
+                        setTimeout(() => setSyncStatus(null), 3500);
+                      } else {
+                        setSyncStatus('❌ Không thể tải bảng tính Excel.');
+                        setTimeout(() => setSyncStatus(null), 3000);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
+                    title="Xuất toàn bộ ma trận 23 tham số & báo cáo QC ra file Microsoft Excel (.xlsx)"
+                  >
+                    <span>📊 Xuất Excel</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const ok = await downloadNhatKyCsv();
+                      if (ok) {
+                        setSyncStatus('📄 Đã tải tệp CSV (UTF-8 with BOM) 23 tham số!');
+                        setTimeout(() => setSyncStatus(null), 3500);
+                      } else {
+                        setSyncStatus('❌ Không thể tải tệp CSV.');
+                        setTimeout(() => setSyncStatus(null), 3000);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg bg-teal-600/20 hover:bg-teal-600/35 text-teal-300 border border-teal-500/30 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
+                    title="Xuất toàn bộ ma trận 23 tham số ra file CSV chuẩn UTF-8"
+                  >
+                    <span>📄 Xuất CSV</span>
                   </button>
                   <button
                     onClick={() => downloadFile(`Profile_In3D_${generatedSessionJson.sessionId}.md`, generatedProfile3DMarkdown, 'text/markdown')}
