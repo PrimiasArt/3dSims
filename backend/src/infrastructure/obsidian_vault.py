@@ -172,6 +172,30 @@ class ObsidianVaultAdapter(VaultStorageProtocol):
         # 2. Update consolidated Markdown log
         self.markdown_store.update_minimalist_markdown_log(entries)
 
+    def create_snapshot(self, tag: str = "auto") -> Dict[str, Optional[str]]:
+        """Creates timestamped backup snapshots for both JSON and Markdown log stores."""
+        json_backup = self.json_store.create_snapshot(tag)
+        md_backup = self.markdown_store.create_snapshot(tag)
+        return {
+            "json_backup": str(json_backup) if json_backup else None,
+            "md_backup": str(md_backup) if md_backup else None,
+        }
+
+    def list_snapshots(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Lists snapshots from both stores."""
+        return {
+            "json_snapshots": self.json_store.list_snapshots(),
+            "md_snapshots": self.markdown_store.list_snapshots(),
+        }
+
+    def restore_snapshot(self, filename: str) -> bool:
+        """Restores a snapshot file (.json or .md) based on file extension."""
+        if filename.endswith(".json"):
+            return self.json_store.restore_snapshot(filename)
+        elif filename.endswith(".md"):
+            return self.markdown_store.restore_snapshot(filename)
+        return False
+
 
 __all__ = [
     "ObsidianVaultAdapter",

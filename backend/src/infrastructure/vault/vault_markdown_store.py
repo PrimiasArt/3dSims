@@ -8,6 +8,8 @@ Specialized repository for Obsidian Markdown notes:
 - 000_PRINT_INDEX.md: Central Map of Content (MOC)
 """
 import os
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -636,3 +638,50 @@ SORT file.mtime DESC
         md_log_path = self.resolve_safe_path("02_NhatKy_In/nhat_ky_in.md")
         md_log = render_markdown_log(entries)
         self.atomic_write(md_log_path, md_log)
+
+    def create_snapshot(self, tag: str = "auto") -> Optional[Path]:
+        """Creates a timestamped snapshot of nhat_ky_in.md into ObsidianVault/backups/."""
+        source = self.resolve_safe_path("02_NhatKy_In/nhat_ky_in.md")
+        if not source.exists():
+            source = self.resolve_safe_path("nhat_ky_in.md")
+        if not source.exists():
+            return None
+        backups_dir = self.vault_root / "backups"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backups_dir / f"nhat_ky_in_{ts}_{tag}.md"
+        shutil.copy2(source, backup_path)
+        all_backups = sorted(backups_dir.glob("nhat_ky_in_*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in all_backups[20:]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+        return backup_path
+
+    def list_snapshots(self) -> List[Dict[str, Any]]:
+        """Lists available Markdown snapshots."""
+        backups_dir = self.vault_root / "backups"
+        if not backups_dir.exists():
+            return []
+        items = []
+        for p in sorted(backups_dir.glob("nhat_ky_in_*.md"), key=lambda x: x.stat().st_mtime, reverse=True):
+            items.append({
+                "filename": p.name,
+                "size_bytes": p.stat().st_size,
+                "created_at": datetime.fromtimestamp(p.stat().st_mtime).isoformat(),
+                "type": "markdown",
+            })
+        return items
+
+    def restore_snapshot(self, filename: str) -> bool:
+        """Restores a snapshot file back to 02_NhatKy_In/nhat_ky_in.md."""
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise PathTraversalSecurityError(filename)
+        backup_file = self.vault_root / "backups" / filename
+        if not backup_file.exists():
+            return False
+        target = self.resolve_safe_path("02_NhatKy_In/nhat_ky_in.md")
+        content = backup_file.read_text(encoding="utf-8")
+        self.atomic_write(target, content)
+        return True

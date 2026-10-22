@@ -4,6 +4,8 @@ Specialized repository for structured JSON audit logs and nhat_ky_in.json matrix
 """
 import json
 import os
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -123,7 +125,7 @@ class VaultJsonStore:
                 if isinstance(data, list):
                     return data
                 elif isinstance(data, dict):
-                    return data.get("chi_tiet_tung_phien", [])
+                    return data.get("sessions") or data.get("chi_tiet_tung_phien") or []
         except Exception:
             return []
         return []
@@ -138,8 +140,55 @@ class VaultJsonStore:
             "danh_sach_phien": session_cols,
             "bang_tong_hop": json_matrix_rows,
             "ma_tran_tham_so": json_matrix_rows,
+            "sessions": entries,
             "chi_tiet_tung_phien": entries,
         }
         json_log_path = self.resolve_safe_path("nhat_ky_in.json")
         self.atomic_write(json_log_path, json.dumps(matrix_payload, indent=2, ensure_ascii=False))
         return session_cols, json_matrix_rows
+
+    def create_snapshot(self, tag: str = "auto") -> Optional[Path]:
+        """Creates a timestamped snapshot of nhat_ky_in.json into JsonLogs/backups/."""
+        source = self.resolve_safe_path("nhat_ky_in.json")
+        if not source.exists():
+            return None
+        backups_dir = self.json_root / "backups"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_path = backups_dir / f"nhat_ky_in_{ts}_{tag}.json"
+        shutil.copy2(source, backup_path)
+        # Keep latest 20 backups
+        all_backups = sorted(backups_dir.glob("nhat_ky_in_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in all_backups[20:]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+        return backup_path
+
+    def list_snapshots(self) -> List[Dict[str, Any]]:
+        """Lists available JSON snapshots."""
+        backups_dir = self.json_root / "backups"
+        if not backups_dir.exists():
+            return []
+        items = []
+        for p in sorted(backups_dir.glob("nhat_ky_in_*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+            items.append({
+                "filename": p.name,
+                "size_bytes": p.stat().st_size,
+                "created_at": datetime.fromtimestamp(p.stat().st_mtime).isoformat(),
+                "type": "json",
+            })
+        return items
+
+    def restore_snapshot(self, filename: str) -> bool:
+        """Restores a snapshot file back to nhat_ky_in.json."""
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise PathTraversalSecurityError(filename)
+        backup_file = self.json_root / "backups" / filename
+        if not backup_file.exists():
+            return False
+        target = self.resolve_safe_path("nhat_ky_in.json")
+        content = backup_file.read_text(encoding="utf-8")
+        self.atomic_write(target, content)
+        return True

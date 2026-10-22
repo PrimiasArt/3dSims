@@ -362,6 +362,208 @@ class SupabaseSyncService:
         self.last_sync_result = result
         return result
 
+    async def pull_sessions(self, json_root: Optional[Path] = None, vault_root: Optional[Path] = None) -> Dict[str, Any]:
+        """
+        Pulls print sessions from Supabase cloud database and synchronizes into local storage:
+        - Updates nhat_ky_in.json (preserves or updates existing, appends missing)
+        - Re-generates 02_NhatKy_In/nhat_ky_in.md and individual PHIEU_*.md
+        - Re-generates 000_PRINT_INDEX.md (MOC)
+        """
+        if not self.url or not self.key:
+            return {"success": False, "count": 0, "error": "Chưa cấu hình Supabase URL và Key"}
+
+        j_root = json_root or Path(settings.json_root)
+        v_root = vault_root or Path(settings.vault_root)
+
+        headers = {
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json",
+        }
+        endpoint = f"{self.url.rstrip('/')}/rest/v1/print_sessions?select=*&order=id.asc"
+
+        remote_rows: List[Dict[str, Any]] = []
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.get(endpoint, headers=headers)
+                if res.status_code in (200, 204):
+                    remote_rows = res.json() if res.text.strip() else []
+                else:
+                    return {
+                        "success": False,
+                        "count": 0,
+                        "error": f"Lỗi truy vấn Supabase ({res.status_code}): {res.text}",
+                    }
+        except Exception as e:
+            return {"success": False, "count": 0, "error": f"Không thể kết nối Supabase: {str(e)}"}
+
+        if not remote_rows:
+            return {"success": True, "count": 0, "message": "Không có phiên in nào trên Supabase Cloud để đồng bộ."}
+
+        # 1. Read existing local sessions
+        nhat_ky_file = j_root / "nhat_ky_in.json"
+        local_sessions: List[Dict[str, Any]] = []
+        if nhat_ky_file.exists():
+            try:
+                with open(nhat_ky_file, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+                    if isinstance(d, dict):
+                        local_sessions = d.get("sessions") or d.get("chi_tiet_tung_phien") or []
+                    elif isinstance(d, list):
+                        local_sessions = d
+            except Exception:
+                local_sessions = []
+
+        # 2. Merge remote sessions into local
+        session_map = {str(s.get("sessionId")): s for s in local_sessions if s.get("sessionId")}
+
+        from backend.src.infrastructure.formatters import (
+            build_parameter_session_matrix,
+            render_markdown_log,
+            render_phieu_markdown,
+        )
+
+        for row in remote_rows:
+            sid = str(row.get("id") or "").strip()
+            if not sid:
+                continue
+
+            telemetry = row.get("telemetry_json")
+            if isinstance(telemetry, dict) and telemetry.get("sessionId"):
+                session_entry = telemetry
+            else:
+                session_entry = {
+                    "sessionId": sid,
+                    "operator": row.get("user_name", "Kỹ sư in 3D"),
+                    "startedAt": row.get("started_at", ""),
+                    "status": row.get("status", "COMPLETED"),
+                    "modelName": row.get("model_name", "Benchy"),
+                    "material": row.get("material", "PLA"),
+                    "score": float(row.get("score") or 100),
+                    "notes": row.get("notes", ""),
+                    "slicer": {
+                        "layerHeightMm": float(row.get("layer_height") or 0.2),
+                        "infillPercent": float(row.get("infill_density") or 20),
+                        "material": row.get("material", "PLA"),
+                    },
+                    "hardware": {
+                        "speedF": {"defaultMmS": float(row.get("print_speed") or 60)},
+                        "temperatureC": {
+                            "nozzleFanPercent": f"{row.get('nozzle_temp', 210)}°C",
+                            "bed": float(row.get("bed_temp") or 60),
+                        },
+                        "extrusion": {
+                            "flowRatio": float(row.get("flow_ratio") or 1.0),
+                            "retractionMm": float(row.get("retraction_mm") or 0.8),
+                        },
+                    },
+                }
+            session_map[sid] = session_entry
+
+        def _sort_key(item):
+            s_id_str = str(item.get("sessionId", ""))
+            try:
+                return (0, int(s_id_str))
+            except ValueError:
+                return (1, s_id_str)
+
+        merged_sessions = sorted(list(session_map.values()), key=_sort_key)
+
+        # 3. Save to nhat_ky_in.json atomically
+        session_cols, json_matrix_rows, _ = build_parameter_session_matrix(merged_sessions)
+        payload_data = {
+            "schema_version": "v2026.1",
+            "kieu_trinh_bay": "bang_hop_nhat_phan_lop",
+            "tong_so_phien": len(merged_sessions),
+            "danh_sach_phien": session_cols,
+            "bang_tong_hop": json_matrix_rows,
+            "ma_tran_tham_so": json_matrix_rows,
+            "sessions": merged_sessions,
+            "chi_tiet_tung_phien": merged_sessions,
+        }
+
+        temp_path = nhat_ky_file.with_name(f".tmp_nhatky_{os.getpid()}")
+        try:
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(payload_data, f, indent=2, ensure_ascii=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, nhat_ky_file)
+        except Exception:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
+
+        # 4. Save 02_NhatKy_In/nhat_ky_in.md and individual PHIEU_*.md
+        vault_notes_dir = v_root / "02_NhatKy_In"
+        vault_notes_dir.mkdir(parents=True, exist_ok=True)
+        md_content = render_markdown_log(merged_sessions)
+        md_path = vault_notes_dir / "nhat_ky_in.md"
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+
+        for s in merged_sessions:
+            s_id = str(s.get("sessionId", "01"))
+            phieu_path = vault_notes_dir / f"PHIEU_{s_id}.md"
+            phieu_md = render_phieu_markdown(s)
+            with open(phieu_path, "w", encoding="utf-8") as f:
+                f.write(phieu_md)
+
+        # 5. Update MOC (000_PRINT_INDEX.md)
+        moc_path = v_root / "000_PRINT_INDEX.md"
+        session_table_rows = [
+            f"| `{s.get('sessionId', f'{i+1:02d}')}` | [[Profile_In3D_{s.get('sessionId', f'{i+1:02d}')}|🎨 Profile In 3D #{s.get('sessionId', f'{i+1:02d}')}]] | [[PHIEU_{s.get('sessionId', f'{i+1:02d}')}|Phiếu #{s.get('sessionId', f'{i+1:02d}')}]] | `{s.get('startedAt', '-')}` | `{s.get('slicer', {}).get('layerHeightMm', 0.2)}mm` | `01_Profiles_In3D/` | `02_NhatKy_In/` |"
+            for i, s in enumerate(merged_sessions)
+        ]
+        session_table_str = "\n".join(session_table_rows)
+        moc_content = f"""---
+type: moc
+tags:
+  - printsim/index
+  - corexy/vault
+---
+
+# 🧭 3D PrintSim Pro — Map of Content (MOC) & Graph Navigator
+
+> **Obsidian Graph View Hub**: Tệp này liên kết toàn bộ các phiên in 3D và báo cáo kiểm định để trực quan hóa sơ đồ mạng nhện.
+
+---
+
+## 📈 Truy Vấn Obsidian Dataview Toàn Bộ Phiên In
+```dataview
+TABLE startedAt as "Thời gian", status as "Trạng thái", slicer.layerHeightMm as "Độ dày lớp", hardware.speedF.defaultMmS as "Tốc độ F"
+FROM "02_NhatKy_In" OR #printsim/phieu-in
+SORT file.mtime DESC
+```
+
+---
+
+## 🗂️ Bảng Tổng Hợp Điều Hướng Các Phiên In (Sessions Matrix)
+
+| Phiên in | Hồ Sơ In 3D (Executive) | Phiếu Chi Tiết | Thời Gian | Cấu Hình Lớp | Thư Mục Profile | Thư Mục Nhật Ký |
+| :---: | :--- | :---: | :---: | :--- | :--- |
+{session_table_str}
+
+---
+
+## 📓 Nhật Ký In Khóa Chuẩn (02_NhatKy_In)
+- [[nhat_ky_in|Nhật Ký In Tổng Hợp]] (`02_NhatKy_In/nhat_ky_in.md`)
+
+---
+*Tự động đồng bộ bởi 3D PrintSim Telemetry Engine.*
+"""
+        with open(moc_path, "w", encoding="utf-8") as f:
+            f.write(moc_content)
+
+        return {
+            "success": True,
+            "pulled_count": len(remote_rows),
+            "merged_total_sessions": len(merged_sessions),
+            "message": f"Đồng bộ kéo thành công {len(remote_rows)} phiên in từ Supabase về Local Vault.",
+        }
+
     def get_sql_migration_script(self) -> str:
         """Returns ready-to-execute PostgreSQL DDL migration script for Supabase SQL Editor."""
         return """-- ==============================================================================

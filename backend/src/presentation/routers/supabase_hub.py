@@ -82,6 +82,22 @@ async def trigger_supabase_sync(vault: VaultStorageProtocol = Depends(get_vault)
     return JSONResponse(content=res, status_code=status.HTTP_200_OK)
 
 
+@router.post(
+    "/api/v1/supabase/pull",
+    status_code=status.HTTP_200_OK,
+)
+async def trigger_supabase_pull(vault: VaultStorageProtocol = Depends(get_vault)):
+    """
+    Đồng bộ kéo 2 chiều: Tải toàn bộ phiên in từ Supabase Cloud Database về Local.
+    Hợp nhất vào nhat_ky_in.json, sinh lại file nhat_ky_in.md, PHIEU_*.md và MOC Obsidian.
+    """
+    res = await supabase_service.pull_sessions(
+        vault_root=vault._vault_root,
+        json_root=vault._json_root,
+    )
+    return JSONResponse(content=res, status_code=status.HTTP_200_OK if res.get("success") else status.HTTP_400_BAD_REQUEST)
+
+
 async def _run_supabase_sync_task(job_id: str, vault_root, json_root, job_mgr: BackgroundJobManager):
     """Internal worker executed in BackgroundTasks."""
     job_mgr.start_job(job_id, message="Bắt đầu đồng bộ dữ liệu lên Supabase...")

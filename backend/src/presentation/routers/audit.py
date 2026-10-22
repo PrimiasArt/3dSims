@@ -141,6 +141,14 @@ async def save_session_log(
     else:
         sessions.append(session_entry)
 
+    # 0. Automatic Backup Snapshot before updating
+    backup_info = None
+    if hasattr(vault, "create_snapshot"):
+        try:
+            backup_info = vault.create_snapshot(tag=f"session_{s_id}")
+        except Exception:
+            pass
+
     from backend.src.infrastructure.formatters import (
         build_parameter_session_matrix,
         render_markdown_log,
@@ -221,6 +229,51 @@ SORT file.mtime DESC
 """
     vault._atomic_write(moc_path, moc_content)
 
+    # 7. Spool Inventory Hook (Auto-deduction & runout alert)
+    spool_deduction = None
+    try:
+        from backend.src.presentation.dependencies import get_spool_repo
+        spool_repo = get_spool_repo()
+        target_spool_id = payload.session.get("spoolId") or payload.session.get("spool_id")
+        target_spool = None
+        if target_spool_id:
+            target_spool = spool_repo.get_by_id(target_spool_id)
+        if not target_spool:
+            mat = str(payload.session.get("material") or payload.session.get("slicer", {}).get("material") or "PLA").upper()
+            all_spools = spool_repo.list_all()
+            target_spool = next((sp for sp in all_spools if sp.is_active and sp.material.upper() == mat), None)
+            if not target_spool and all_spools:
+                target_spool = next((sp for sp in all_spools if sp.is_active), all_spools[0])
+
+        if target_spool:
+            used_grams = float(
+                payload.session.get("filamentUsedG")
+                or payload.session.get("filament_used_g")
+                or payload.session.get("slicer", {}).get("filamentUsedG")
+                or 14.5
+            )
+            updated_spool = spool_repo.deduct_weight(target_spool.id, used_grams)
+            if updated_spool:
+                is_low = updated_spool.remaining_weight_g < 50.0
+                spool_deduction = {
+                    "spool_id": updated_spool.id,
+                    "spool_name": updated_spool.name,
+                    "brand": updated_spool.brand,
+                    "material": updated_spool.material,
+                    "deducted_grams": used_grams,
+                    "remaining_weight_g": updated_spool.remaining_weight_g,
+                    "percentage_left": updated_spool.percentage_left,
+                    "location": updated_spool.location,
+                    "is_low": is_low,
+                    "warning": (
+                        f"⚠️ Cảnh báo: Cuộn '{updated_spool.name}' ({updated_spool.location}) chỉ còn {updated_spool.remaining_weight_g}g! Nguy cơ hết nhựa trong lần in tới."
+                        if is_low
+                        else None
+                    ),
+                }
+    except Exception:
+        pass
+
     return JSONResponse(
         content={
             "status": "success",
@@ -231,9 +284,70 @@ SORT file.mtime DESC
             "markdown_path": str(md_path),
             "phieu_path": str(phieu_path),
             "profile_path": str(profile_path),
+            "backup_created": backup_info,
+            "spool_deduction": spool_deduction,
         },
         status_code=status.HTTP_200_OK,
     )
+
+
+@router.get(
+    "/api/v1/vault/snapshots",
+    status_code=status.HTTP_200_OK,
+    tags=["Vault Snapshots & Backup"],
+)
+async def list_vault_snapshots(vault: VaultStorageProtocol = Depends(get_vault)):
+    """Liệt kê toàn bộ các bản snapshot sao lưu của Vault Markdown và JSON Logs."""
+    if hasattr(vault, "list_snapshots"):
+        return JSONResponse(content=vault.list_snapshots(), status_code=status.HTTP_200_OK)
+    return JSONResponse(content={"json_snapshots": [], "md_snapshots": []}, status_code=status.HTTP_200_OK)
+
+
+@router.post(
+    "/api/v1/vault/snapshots/create",
+    status_code=status.HTTP_200_OK,
+    tags=["Vault Snapshots & Backup"],
+)
+async def create_vault_snapshot(
+    tag: str = "manual",
+    vault: VaultStorageProtocol = Depends(get_vault),
+):
+    """Tạo bản snapshot dự phòng thủ công cho cả nhat_ky_in.json và nhat_ky_in.md."""
+    if hasattr(vault, "create_snapshot"):
+        res = vault.create_snapshot(tag=tag)
+        return JSONResponse(
+            content={
+                "status": "success",
+                "message": f"Đã tạo bản snapshot backup với nhãn '{tag}'.",
+                "backups": res,
+            },
+            status_code=status.HTTP_200_OK,
+        )
+    return JSONResponse(content={"status": "error", "message": "Vault adapter does not support snapshots."}, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+@router.post(
+    "/api/v1/vault/snapshots/restore/{filename}",
+    status_code=status.HTTP_200_OK,
+    tags=["Vault Snapshots & Backup"],
+)
+async def restore_vault_snapshot(
+    filename: str = Path(..., description="Tên file snapshot cần khôi phục"),
+    vault: VaultStorageProtocol = Depends(get_vault),
+):
+    """Khôi phục dữ liệu từ bản snapshot dự phòng."""
+    if hasattr(vault, "restore_snapshot"):
+        success = vault.restore_snapshot(filename)
+        if success:
+            return JSONResponse(
+                content={"status": "success", "message": f"Đã khôi phục thành công từ snapshot '{filename}'."},
+                status_code=status.HTTP_200_OK,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Không tìm thấy file snapshot '{filename}' hoặc định dạng không hỗ trợ.",
+        )
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Vault does not support restore.")
 
 
 @router.get(
