@@ -155,3 +155,42 @@ async def compare_two_sessions_markdown(
     from backend.src.application.session_comparator import compare_sessions
     res = compare_sessions(base_s, target_s)
     return PlainTextResponse(res["markdown"], media_type="text/markdown")
+
+
+from pydantic import BaseModel, Field
+from backend.src.domain.gcode_inspector import GCodeInspector, GCodeInspectionReport
+
+
+class GCodeInspectRequest(BaseModel):
+    gcode_content: str = Field(..., description="Nội dung G-code thô cần phân tích")
+    material: str = Field(default="PLA", description="Loại vật liệu in (PLA, PETG, ABS, TPU)")
+    filament_diameter: float = Field(default=1.75, description="Đường kính sợi nhựa tính theo mm")
+    density_g_cm3: float = Field(default=1.24, description="Khối lượng riêng vật liệu g/cm3")
+
+
+@router.post(
+    "/api/v1/slicer/gcode/inspect",
+    response_model=GCodeInspectionReport,
+    status_code=status.HTTP_200_OK,
+)
+async def inspect_gcode(payload: GCodeInspectRequest):
+    """
+    Phân tích chuyên sâu tệp G-Code:
+    - Bóc tách số lớp (Layers), chiều cao từng tầng, độ cao tổng thể mô hình.
+    - Tính toán chính xác thời gian in thực tế theo gia tốc và quãng đường chạy.
+    - Đo lường khối lượng nhựa tiêu hao thực tế (E length -> grams).
+    - Cảnh báo các nguy cơ va quẹt (di chuyển không nhấc đầu Z-Hop) và xung đột nhiệt độ.
+    """
+    if not payload.gcode_content.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nội dung mã lệnh G-code không được để trống.",
+        )
+
+    return GCodeInspector.inspect(
+        gcode_content=payload.gcode_content,
+        material=payload.material,
+        filament_diameter=payload.filament_diameter,
+        density_g_cm3=payload.density_g_cm3,
+    )
+

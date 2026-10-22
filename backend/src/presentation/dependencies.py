@@ -15,6 +15,7 @@ from backend.src.infrastructure.gemini_ai import GeminiAIService
 from backend.src.infrastructure.config import settings
 from backend.src.infrastructure.job_manager import job_manager, BackgroundJobManager
 from backend.src.infrastructure.telemetry_stream_manager import telemetry_stream_mgr, TelemetryStreamManager
+from backend.src.infrastructure.spool_repository import SpoolInventoryRepository
 from backend.src.application.use_cases import (
     CalculateParameterChurnUseCase,
     GenerateDualAuditUseCase,
@@ -32,6 +33,7 @@ class Container:
     churn_calc: CalculateParameterChurnUseCase = CalculateParameterChurnUseCase()
     job_mgr: BackgroundJobManager = job_manager
     stream_mgr: TelemetryStreamManager = telemetry_stream_mgr
+    spool_repo: SpoolInventoryRepository = SpoolInventoryRepository(json_dir=settings.json_root)
 
 
 def configure_container(
@@ -95,3 +97,7 @@ def get_job_manager() -> BackgroundJobManager:
 
 def get_stream_manager() -> TelemetryStreamManager:
     return Container.stream_mgr
+
+
+def get_spool_repo() -> SpoolInventoryRepository:
+    return Container.spool_repo

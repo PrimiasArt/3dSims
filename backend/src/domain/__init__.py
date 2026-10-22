@@ -33,6 +33,9 @@ from backend.src.domain.printer_profiles import (
     get_all_printer_profiles,
 )
 
+from backend.src.domain.spool_inventory import FilamentSpool, SpoolVerificationResult
+from backend.src.domain.gcode_inspector import GCodeInspector, GCodeInspectionReport, LayerInspectionStats
+
 __all__ = [
     "TelemetryEvent",
     "ParameterMetric",
@@ -59,4 +62,9 @@ __all__ = [
     "PRINTER_PROFILES_DATABASE",
     "get_printer_profile",
     "get_all_printer_profiles",
+    "FilamentSpool",
+    "SpoolVerificationResult",
+    "GCodeInspector",
+    "GCodeInspectionReport",
+    "LayerInspectionStats",
 ]

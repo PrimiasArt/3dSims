@@ -9,6 +9,7 @@ from backend.src.infrastructure.job_manager import BackgroundJobManager
 from backend.src.infrastructure.telemetry_stream_manager import TelemetryStreamManager
 from backend.src.infrastructure.qc_certificate_service import QCCertificateService
 from backend.src.infrastructure.gemini_ai import GeminiAIService
+from backend.src.infrastructure.spool_repository import SpoolInventoryRepository
 from backend.src.infrastructure.slicer_exporter import (
     export_slicer_preset,
     export_orcaslicer_profile,
@@ -29,6 +30,7 @@ __all__ = [
     "TelemetryStreamManager",
     "QCCertificateService",
     "GeminiAIService",
+    "SpoolInventoryRepository",
     "export_slicer_preset",
     "export_orcaslicer_profile",
     "export_bambulab_profile",
