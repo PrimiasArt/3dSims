@@ -75,7 +75,7 @@ class SupabaseSyncService:
                 with open(nhat_ky_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, dict):
-                        local_sessions = len(data.get("bang_tong_hop", [])) or len(data.get("danh_sach_phien", []))
+                        local_sessions = data.get("total_sessions") or data.get("tong_so_phien") or len(data.get("sessions", [])) or len(data.get("chi_tiet_tung_phien", [])) or len(data.get("danh_sach_phien", []))
                     elif isinstance(data, list):
                         local_sessions = len(data)
             except Exception as e:
@@ -176,7 +176,7 @@ class SupabaseSyncService:
 
         raw_sessions: List[Dict[str, Any]] = []
         if isinstance(data, dict):
-            raw_sessions = data.get("bang_tong_hop", [])
+            raw_sessions = data.get("sessions") or data.get("chi_tiet_tung_phien") or data.get("bang_tong_hop", [])
         elif isinstance(data, list):
             raw_sessions = data
 
