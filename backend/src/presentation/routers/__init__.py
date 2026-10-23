@@ -12,6 +12,7 @@ from backend.src.presentation.routers.qc_certificate import router as qc_certifi
 from backend.src.presentation.routers.projects import router as projects_router
 from backend.src.presentation.routers.analytics import router as analytics_router
 from backend.src.presentation.routers.inventory import router as inventory_router
+from backend.src.presentation.routers.spc import router as spc_router
 
 __all__ = [
     "system_router",
@@ -25,4 +26,5 @@ __all__ = [
     "projects_router",
     "analytics_router",
     "inventory_router",
+    "spc_router",
 ]

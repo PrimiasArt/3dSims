@@ -29,6 +29,7 @@ from backend.src.presentation.routers import (
     projects_router,
     analytics_router,
     inventory_router,
+    spc_router,
 )
 
 logger = logging.getLogger("3d_sim.api")
@@ -101,5 +102,6 @@ def create_app(
     app.include_router(projects_router)
     app.include_router(analytics_router)
     app.include_router(inventory_router)
+    app.include_router(spc_router)
 
     return app

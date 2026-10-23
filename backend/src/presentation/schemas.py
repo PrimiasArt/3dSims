@@ -327,3 +327,49 @@ class AnalyticsTrendsResponse(BaseModel):
     trend_series: List[Dict[str, Any]] = Field(default_factory=list, description="Chuỗi thông số lịch sử")
     hesitation_churn_leaderboard: List[Dict[str, Any]] = Field(default_factory=list, description="Top các thông số bị phân vân thay đổi nhiều nhất")
 
+
+# ==============================================================================
+# 📊 STATISTICAL PROCESS CONTROL (SPC) & BATCH QC SCHEMAS
+# ==============================================================================
+
+class BatchQCAuditRequest(BaseModel):
+    """Yêu cầu thẩm định chất lượng hàng loạt (Batch QC)."""
+    model_config = ConfigDict(extra="ignore")
+
+    sessions: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Danh sách các phiên in cần kiểm tra. Nếu để trống, hệ thống sẽ tự nạp toàn bộ từ nhat_ky_in.json"
+    )
+    printer_id: Optional[str] = Field(default=None, description="ID máy in để đối soát trần công suất phần cứng")
+
+
+class BatchQCAuditResponse(BaseModel):
+    """Báo cáo kết quả kiểm định hàng loạt và năng lực quy trình SPC."""
+    model_config = ConfigDict(extra="ignore")
+
+    total_audited_sessions: int
+    passed_sessions: int
+    failed_sessions: int
+    yield_rate_percent: float
+    average_qc_score: float
+    process_capability_summary: Dict[str, Any]
+    control_charts: Dict[str, Any]
+    detected_anomalies: List[Any]
+    executive_recommendations: List[str]
+
+
+class SPCControlChartResponse(BaseModel):
+    """Dữ liệu chuỗi thời gian biểu đồ kiểm soát Shewhart (UCL, CL, LCL)."""
+    model_config = ConfigDict(extra="ignore")
+
+    metric: str
+    limits: Dict[str, Any]
+    data_points: List[Dict[str, Any]]
+
+
+class AnomalyDetectionResponse(BaseModel):
+    """Danh sách các ca in dị thường (Outliers)."""
+    model_config = ConfigDict(extra="ignore")
+
+    total_anomalies: int
+    anomalies: List[Any]
