@@ -13,6 +13,7 @@ from backend.src.application.use_cases import (
 from backend.src.application.session_comparator import compare_sessions
 from backend.src.application.physics_sanity_check import PhysicsSanityCheckUseCase
 from backend.src.application.analytics_service import QCAnalyticsService
+from backend.src.application.batch_qc_service import BatchQCService
 
 AnalyticsService = QCAnalyticsService
 
@@ -28,4 +29,6 @@ __all__ = [
     "PhysicsSanityCheckUseCase",
     "QCAnalyticsService",
     "AnalyticsService",
+    "BatchQCService",
 ]
+

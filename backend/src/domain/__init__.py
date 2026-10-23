@@ -35,6 +35,13 @@ from backend.src.domain.printer_profiles import (
 
 from backend.src.domain.spool_inventory import FilamentSpool, SpoolVerificationResult
 from backend.src.domain.gcode_inspector import GCodeInspector, GCodeInspectionReport, LayerInspectionStats
+from backend.src.domain.spc_engine import (
+    ControlLimits,
+    ProcessCapability,
+    AnomalyRecord,
+    BatchQCReport,
+    SPCEngine,
+)
 
 __all__ = [
     "TelemetryEvent",
@@ -67,4 +74,10 @@ __all__ = [
     "GCodeInspector",
     "GCodeInspectionReport",
     "LayerInspectionStats",
+    "ControlLimits",
+    "ProcessCapability",
+    "AnomalyRecord",
+    "BatchQCReport",
+    "SPCEngine",
 ]
+

@@ -25,6 +25,39 @@ def _mask_key(key: str) -> str:
     return f"{key[:4]}...{key[-4:]}"
 
 
+def _parse_frontmatter(md_text: str) -> Dict[str, Any]:
+    """Extracts YAML frontmatter key-values from markdown file."""
+    if not md_text.startswith("---"):
+        return {}
+    parts = md_text.split("---", 2)
+    if len(parts) < 3:
+        return {}
+    fm_text = parts[1]
+    data: Dict[str, Any] = {}
+    for line in fm_text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("-"):
+            continue
+        if ":" in line:
+            k, v = line.split(":", 1)
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            if v.lower() == "true":
+                data[k] = True
+            elif v.lower() == "false":
+                data[k] = False
+            else:
+                try:
+                    if "." in v:
+                        data[k] = float(v)
+                    else:
+                        data[k] = int(v)
+                except ValueError:
+                    data[k] = v
+    return data
+
+
+
 class SupabaseSyncService:
     """Manages Supabase connection, schema verification, and batch sync operations."""
 
@@ -191,20 +224,91 @@ class SupabaseSyncService:
             if not sid:
                 continue
 
-            slicer = s.get("slicer", {})
-            hardware = s.get("hardware", {})
-            speed_f = hardware.get("speedF", {})
-            temp_c = hardware.get("temperatureC", {})
-            ext = hardware.get("extrusion", {})
-            locked = s.get("lockedContract", {})
+            metadata = s.get("metadata", {}) if isinstance(s.get("metadata"), dict) else {}
+            slicer = s.get("slicer", {}) if isinstance(s.get("slicer"), dict) else {}
+            hardware = s.get("hardware", {}) if isinstance(s.get("hardware"), dict) else {}
+            speed_f = hardware.get("speedF", {}) if isinstance(hardware.get("speedF"), dict) else {}
+            temps_e = hardware.get("tempsE", {}) if isinstance(hardware.get("tempsE"), dict) else {}
+            temp_c = hardware.get("temperatureC", {}) if isinstance(hardware.get("temperatureC"), dict) else {}
+            ext = hardware.get("extrusion", {}) if isinstance(hardware.get("extrusion"), dict) else {}
+            locked = s.get("lockedContract", {}) if isinstance(s.get("lockedContract"), dict) else {}
 
-            # Parse nozzle temp
+            # Parse nozzle temp (priority: hardware.tempsE -> hardware.temperatureC -> lockedContract -> default 210)
             nozzle_val = 210.0
-            raw_nozzle = temp_c.get("nozzleFanPercent") or temp_c.get("nozzle") or "210"
-            try:
-                nozzle_val = float(str(raw_nozzle).split()[0].replace("°C", "").strip())
-            except Exception:
-                pass
+            if temps_e.get("nozzleTempC") is not None:
+                try:
+                    nozzle_val = float(temps_e["nozzleTempC"])
+                except Exception:
+                    pass
+            elif temp_c.get("nozzle") is not None or temp_c.get("nozzleFanPercent") is not None:
+                raw_nozzle = temp_c.get("nozzleFanPercent") or temp_c.get("nozzle")
+                try:
+                    nozzle_val = float(str(raw_nozzle).split()[0].replace("°C", "").strip())
+                except Exception:
+                    pass
+            elif locked.get("D_nhiet_dau_in") is not None:
+                try:
+                    nozzle_val = float(locked["D_nhiet_dau_in"])
+                except Exception:
+                    pass
+
+            # Parse bed temp (priority: hardware.tempsE -> hardware.temperatureC -> lockedContract -> default 60)
+            bed_val = 60.0
+            if temps_e.get("bedTempC") is not None:
+                try:
+                    bed_val = float(temps_e["bedTempC"])
+                except Exception:
+                    pass
+            elif temp_c.get("bed") is not None:
+                try:
+                    bed_val = float(temp_c["bed"])
+                except Exception:
+                    pass
+            elif locked.get("E_nhiet_ban_in") is not None:
+                try:
+                    bed_val = float(locked["E_nhiet_ban_in"])
+                except Exception:
+                    pass
+
+            # Parse speed
+            speed_val = 60.0
+            raw_spd = speed_f.get("defaultMmS") if speed_f.get("defaultMmS") is not None else locked.get("F_toc_do_day")
+            if raw_spd is not None:
+                try:
+                    speed_val = float(raw_spd)
+                except Exception:
+                    pass
+
+            # Parse layer height
+            lh_val = 0.2
+            raw_lh = slicer.get("layerHeightMm") if slicer.get("layerHeightMm") is not None else locked.get("A_do_day_lop")
+            if raw_lh is not None:
+                try:
+                    lh_val = float(raw_lh)
+                except Exception:
+                    pass
+
+            # Parse infill
+            infill_val = 20.0
+            raw_inf = slicer.get("infillPercent") if slicer.get("infillPercent") is not None else locked.get("C_do_rong")
+            if raw_inf is not None:
+                try:
+                    infill_val = float(raw_inf)
+                except Exception:
+                    pass
+
+            # Parse score
+            score_val = 100.0
+            raw_score = metadata.get("printabilityScore") if metadata.get("printabilityScore") is not None else s.get("score")
+            if raw_score is not None:
+                try:
+                    score_val = float(raw_score)
+                except Exception:
+                    pass
+
+            # Model and material
+            model_name = metadata.get("modelName") or s.get("modelName") or "Benchy"
+            material = metadata.get("material") or s.get("material") or slicer.get("material") or "PLA"
 
             row = {
                 "id": sid,
@@ -212,16 +316,16 @@ class SupabaseSyncService:
                 "started_at": s.get("startedAt") or s.get("timestamp") or now_iso,
                 "status": s.get("status", "COMPLETED"),
                 "user_name": s.get("operator") or s.get("nguoi_thuc_hien") or "Kỹ sư in 3D",
-                "model_name": s.get("modelName", "Benchy"),
-                "material": s.get("material") or slicer.get("material") or "PLA",
-                "layer_height": float(slicer.get("layerHeightMm") or locked.get("A_do_day_lop") or 0.2),
-                "infill_density": float(slicer.get("infillPercent") or locked.get("C_do_rong") or 20),
-                "print_speed": float(speed_f.get("defaultMmS") or locked.get("F_toc_do_day") or 60),
-                "flow_ratio": float(ext.get("flowRatio") or 1.0),
-                "retraction_mm": float(ext.get("retractionMm") or 0.8),
+                "model_name": model_name,
+                "material": material,
+                "layer_height": lh_val,
+                "infill_density": infill_val,
+                "print_speed": speed_val,
+                "flow_ratio": float(ext.get("flowRatio") if ext.get("flowRatio") is not None else 1.0),
+                "retraction_mm": float(ext.get("retractionMm") if ext.get("retractionMm") is not None else 0.8),
                 "nozzle_temp": nozzle_val,
-                "bed_temp": float(temp_c.get("bed") or locked.get("E_nhiet_ban_in") or 60),
-                "score": float(s.get("score") or 100),
+                "bed_temp": bed_val,
+                "score": score_val,
                 "notes": s.get("failureDetail") or s.get("notes") or "",
                 "telemetry_json": s,
                 "synced_at": now_iso,
@@ -248,6 +352,30 @@ class SupabaseSyncService:
         if not profile_files:
             return {"success": True, "count": 0, "message": "Không có file hồ sơ 3D nào"}
 
+        # Load local sessions for cross-referencing full parameters if available
+        local_sessions_map: Dict[str, Dict[str, Any]] = {}
+        nhat_ky_file = j_root / "nhat_ky_in.json"
+        if not nhat_ky_file.exists():
+            nhat_ky_file = v_root / "nhat_ky_in.json"
+        if not nhat_ky_file.exists():
+            nhat_ky_file = v_root / "02_NhatKy_In" / "nhat_ky_in.json"
+        if nhat_ky_file.exists():
+            try:
+                with open(nhat_ky_file, "r", encoding="utf-8") as f:
+                    nk_data = json.load(f)
+                    sess_list = []
+                    if isinstance(nk_data, dict):
+                        sess_list = nk_data.get("sessions") or nk_data.get("chi_tiet_tung_phien") or nk_data.get("bang_tong_hop", [])
+                    elif isinstance(nk_data, list):
+                        sess_list = nk_data
+                    for s in sess_list:
+                        s_id = str(s.get("sessionId", "")).strip()
+                        if s_id:
+                            local_sessions_map[s_id] = s
+                            local_sessions_map[s_id.lstrip("0")] = s
+            except Exception:
+                pass
+
         rows: List[Dict[str, Any]] = []
 
         for p_file in profile_files:
@@ -260,40 +388,123 @@ class SupabaseSyncService:
             except Exception:
                 md_content = ""
 
-            # Try to read matching JSON audit log for precise QC score
+            fm = _parse_frontmatter(md_content)
+
+            # Look up matching session from local_sessions_map
+            matched_sess = (
+                local_sessions_map.get(pid) or
+                local_sessions_map.get(pid.lstrip("0")) or
+                local_sessions_map.get(pid.replace("_PROD", ""))
+            )
+
+            # Try to read matching JSON audit log for precise QC score / metrics
             audit_json_file = j_root / f"Audit_{pid}.json"
             if not audit_json_file.exists():
                 audit_json_file = j_root / f"Audit_{pid}_PROD.json"
 
-            qc_score = 100.0
-            material = "PLA"
-            slicer_data = {}
-
+            a_data: Dict[str, Any] = {}
             if audit_json_file.exists():
                 try:
                     with open(audit_json_file, "r", encoding="utf-8") as f:
                         a_data = json.load(f)
-                        qc_score = float(a_data.get("qc_score") or a_data.get("score") or 100)
-                        material = a_data.get("material") or "PLA"
-                        slicer_data = a_data
                 except Exception:
-                    pass
+                    a_data = {}
+
+            # Determine QC score
+            qc_score = 100.0
+            if a_data.get("qc_score") is not None:
+                qc_score = float(a_data["qc_score"])
+            elif a_data.get("score") is not None:
+                qc_score = float(a_data["score"])
+            elif fm.get("diem_chat_luong") is not None:
+                qc_score = float(fm["diem_chat_luong"])
+            elif matched_sess:
+                meta = matched_sess.get("metadata", {})
+                score_candidate = meta.get("printabilityScore") if meta.get("printabilityScore") is not None else matched_sess.get("score")
+                if score_candidate is not None:
+                    qc_score = float(score_candidate)
+
+            # Determine material
+            material = str(
+                fm.get("vat_lieu") or fm.get("material") or
+                a_data.get("material") or
+                (matched_sess.get("metadata", {}).get("material") if matched_sess else None) or
+                (matched_sess.get("material") if matched_sess else None) or
+                "PLA"
+            )
+
+            # Determine model name
+            model_name = str(
+                fm.get("ten_mo_hinh") or fm.get("model_name") or
+                (matched_sess.get("metadata", {}).get("modelName") if matched_sess else None) or
+                f"Hồ Sơ Cấu Hình In 3D #{pid}"
+            )
+
+            # Layer height
+            layer_height = 0.2
+            if fm.get("do_day_lop_mm") is not None:
+                layer_height = float(fm["do_day_lop_mm"])
+            elif fm.get("layer_height_mm") is not None:
+                layer_height = float(fm["layer_height_mm"])
+            elif matched_sess and matched_sess.get("slicer", {}).get("layerHeightMm") is not None:
+                layer_height = float(matched_sess["slicer"]["layerHeightMm"])
+
+            # Infill density
+            infill_density = 20.0
+            if fm.get("infill_percent") is not None:
+                infill_density = float(fm["infill_percent"])
+            elif fm.get("mat_do_ruot") is not None:
+                infill_density = float(fm["mat_do_ruot"])
+            elif matched_sess and matched_sess.get("slicer", {}).get("infillPercent") is not None:
+                infill_density = float(matched_sess["slicer"]["infillPercent"])
+
+            # Print speed
+            print_speed = 60.0
+            if fm.get("toc_do_in_mms") is not None:
+                print_speed = float(fm["toc_do_in_mms"])
+            elif fm.get("print_speed_mms") is not None:
+                print_speed = float(fm["print_speed_mms"])
+            elif matched_sess and matched_sess.get("hardware", {}).get("speedF", {}).get("defaultMmS") is not None:
+                print_speed = float(matched_sess["hardware"]["speedF"]["defaultMmS"])
+
+            # Nozzle temp
+            nozzle_temp = 210.0
+            if fm.get("nhiet_do_dau_in_c") is not None:
+                nozzle_temp = float(fm["nhiet_do_dau_in_c"])
+            elif fm.get("nozzle_temp_c") is not None:
+                nozzle_temp = float(fm["nozzle_temp_c"])
+            elif matched_sess and matched_sess.get("hardware", {}).get("tempsE", {}).get("nozzleTempC") is not None:
+                nozzle_temp = float(matched_sess["hardware"]["tempsE"]["nozzleTempC"])
+
+            # Bed temp
+            bed_temp = 60.0
+            if fm.get("nhiet_do_ban_c") is not None:
+                bed_temp = float(fm["nhiet_do_ban_c"])
+            elif fm.get("bed_temp_c") is not None:
+                bed_temp = float(fm["bed_temp_c"])
+            elif matched_sess and matched_sess.get("hardware", {}).get("tempsE", {}).get("bedTempC") is not None:
+                bed_temp = float(matched_sess["hardware"]["tempsE"]["bedTempC"])
+
+            slicer_data = a_data if a_data else (matched_sess.get("slicer", {}) if matched_sess else {})
 
             row = {
                 "id": f"Profile_In3D_{pid}",
                 "profile_code": f"PROD_{pid}",
-                "name": f"Hồ Sơ Cấu Hình In 3D #{pid}",
+                "name": model_name,
                 "material": material,
                 "qc_score": qc_score,
-                "layer_height": 0.2,
-                "infill_density": 20,
-                "print_speed": 60,
-                "nozzle_temp": 210,
-                "bed_temp": 60,
+                "layer_height": layer_height,
+                "infill_density": infill_density,
+                "print_speed": print_speed,
+                "nozzle_temp": nozzle_temp,
+                "bed_temp": bed_temp,
                 "locked_contract": {
-                    "layerHeight": 0.2,
-                    "infillDensity": 20,
+                    "layerHeight": layer_height,
+                    "infillDensity": infill_density,
                     "material": material,
+                    "nozzleTemp": nozzle_temp,
+                    "bedTemp": bed_temp,
+                    "printSpeed": print_speed,
                 },
                 "slicer_settings": slicer_data,
                 "markdown_content": md_content,
@@ -352,6 +563,7 @@ class SupabaseSyncService:
             "success": success,
             "sessions_synced": sessions_res.get("count", 0),
             "profiles_synced": profiles_res.get("count", 0),
+            "total_synced": sessions_res.get("count", 0) + profiles_res.get("count", 0),
             "duration_ms": duration_ms,
             "timestamp": now_iso,
             "message": "Đồng bộ thành công lên Supabase!" if success else "Đồng bộ có lỗi xảy ra.",
@@ -428,6 +640,15 @@ class SupabaseSyncService:
             if not sid:
                 continue
 
+            bed_val = float(row.get("bed_temp") if row.get("bed_temp") is not None else 60)
+            noz_val = float(row.get("nozzle_temp") if row.get("nozzle_temp") is not None else 210)
+            spd_val = float(row.get("print_speed") if row.get("print_speed") is not None else 60)
+            lh_val = float(row.get("layer_height") if row.get("layer_height") is not None else 0.2)
+            infill_val = float(row.get("infill_density") if row.get("infill_density") is not None else 20)
+            mat_val = str(row.get("material") or "PLA")
+            model_val = str(row.get("model_name") or "Mô hình 3D")
+            score_val = float(row.get("score") if row.get("score") is not None else 100)
+
             telemetry = row.get("telemetry_json")
             if isinstance(telemetry, dict) and telemetry.get("sessionId"):
                 session_entry = telemetry
@@ -437,24 +658,34 @@ class SupabaseSyncService:
                     "operator": row.get("user_name", "Kỹ sư in 3D"),
                     "startedAt": row.get("started_at", ""),
                     "status": row.get("status", "COMPLETED"),
-                    "modelName": row.get("model_name", "Benchy"),
-                    "material": row.get("material", "PLA"),
-                    "score": float(row.get("score") or 100),
+                    "metadata": {
+                        "modelName": model_val,
+                        "material": mat_val,
+                        "printabilityScore": score_val,
+                    },
+                    "modelName": model_val,
+                    "material": mat_val,
+                    "score": score_val,
                     "notes": row.get("notes", ""),
                     "slicer": {
-                        "layerHeightMm": float(row.get("layer_height") or 0.2),
-                        "infillPercent": float(row.get("infill_density") or 20),
-                        "material": row.get("material", "PLA"),
+                        "layerHeightMm": lh_val,
+                        "infillPercent": infill_val,
+                        "material": mat_val,
                     },
                     "hardware": {
-                        "speedF": {"defaultMmS": float(row.get("print_speed") or 60)},
+                        "speedF": {"defaultMmS": spd_val},
+                        "tempsE": {
+                            "bedTempC": bed_val,
+                            "nozzleTempC": noz_val,
+                            "fanSpeedPercent": 100,
+                        },
                         "temperatureC": {
-                            "nozzleFanPercent": f"{row.get('nozzle_temp', 210)}°C",
-                            "bed": float(row.get("bed_temp") or 60),
+                            "nozzleFanPercent": f"{noz_val}°C",
+                            "bed": bed_val,
                         },
                         "extrusion": {
-                            "flowRatio": float(row.get("flow_ratio") or 1.0),
-                            "retractionMm": float(row.get("retraction_mm") or 0.8),
+                            "flowRatio": float(row.get("flow_ratio") if row.get("flow_ratio") is not None else 1.0),
+                            "retractionMm": float(row.get("retraction_mm") if row.get("retraction_mm") is not None else 0.8),
                         },
                     },
                 }
