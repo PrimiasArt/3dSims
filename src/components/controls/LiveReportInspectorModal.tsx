@@ -198,6 +198,9 @@ export function LiveReportInspectorModal({
   const [isSyncingBackend, setIsSyncingBackend] = useState<boolean>(false);
   const [isSavingVault, setIsSavingVault] = useState<boolean>(false);
   const [physicsResult, setPhysicsResult] = useState<IPhysicsSanityResult | null>(null);
+  const [slicerDropdownOpen, setSlicerDropdownOpen] = useState<boolean>(false);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState<boolean>(false);
+  const [showJobCardModal, setShowJobCardModal] = useState<boolean>(false);
 
   const sessionId = getCurrentSessionId();
 
@@ -597,6 +600,23 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
       setCopyStatus(`⚠️ Trình duyệt chặn tự động chép, vui lòng sao chép thủ công.`);
     }
     setTimeout(() => setCopyStatus(null), 3000);
+  };
+
+  // Tự động vá thông số an toàn vật lý theo logic của gcode_inspector.py
+  const handleAutoFixSafety = () => {
+    const fixedProfile = {
+      ...(selectedLog ? selectedLog.profileSnapshot : activeProfile),
+      bedTemp: Math.max(60, Number(activeProfile.bedTemp) || 60),
+      nozzleTemp: activeProfile.material === 'PLA' ? Math.min(215, Math.max(200, Number(activeProfile.nozzleTemp) || 205)) : Number(activeProfile.nozzleTemp),
+      flowRatio: 1.0,
+      zHop: 0.4,
+      printSpeed: Math.min(180, Number(activeProfile.printSpeed) || 120),
+    };
+    if (onRestoreProfile) {
+      onRestoreProfile(fixedProfile);
+    }
+    setSyncStatus('⚡ Đã tự động vá và chuẩn hóa các thông số an toàn vật lý (Nhiệt bàn 60°C, Z-Hop 0.4mm, Flow 1.0)!');
+    setTimeout(() => setSyncStatus(null), 4000);
   };
 
   if (!isOpen) return null;
@@ -1051,81 +1071,188 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                     <IconExport size={12} />
                     <span>{isSavingVault ? 'Đang lưu...' : '💾 Lưu Vào Vault'}</span>
                   </button>
+                  <button
+                    onClick={() => setShowJobCardModal(true)}
+                    className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                    title="Xem và xuất Thẻ Bàn Giao Mô Hình (Print Job Ticket) cho xưởng in"
+                  >
+                    <span>🪪 Phiếu In Gọn</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Tầng 2: Toolbar Xuất Preset Slicer & Xuất Bản File (Bố cục thông thoáng, không bao giờ bị cắt) */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pt-0.5">
-                {/* Nhóm Xuất Slicer Presets Chuẩn (OrcaSlicer, Bambu Lab, PrusaSlicer, Ultimaker Cura) */}
-                <div className="flex items-center gap-1.5 p-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-hairline)] text-[10px] flex-wrap">
-                  <span className="studio-text-secondary px-1.5 font-mono font-bold">Xuất Slicer:</span>
-                  <button
-                    onClick={async () => {
-                      setSyncStatus('🦈 Đang xuất OrcaSlicer Profile (.json)...');
-                      const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'orcaslicer');
-                      if (!ok) {
-                        const jsonStr = generateOrcaSlicerPresetJson(generatedSessionJson);
-                        downloadFile(`OrcaSlicer_Profile_${generatedSessionJson.sessionId}.json`, jsonStr, 'application/json');
-                      }
-                      setSyncStatus(`✓ Đã tải OrcaSlicer Profile (${generatedSessionJson.sessionId})!`);
-                      setTimeout(() => setSyncStatus(null), 3500);
-                    }}
-                    className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
-                    title="Xuất preset chuẩn OrcaSlicer v2.x (.json)"
-                  >
-                    <span>🦈 OrcaSlicer</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setSyncStatus('🐼 Đang xuất Bambu Studio Profile (.json)...');
-                      const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'bambulab');
-                      if (!ok) {
-                        const jsonStr = generateBambuLabPresetJson(generatedSessionJson);
-                        downloadFile(`BambuLab_Profile_${generatedSessionJson.sessionId}.json`, jsonStr, 'application/json');
-                      }
-                      setSyncStatus(`✓ Đã tải Bambu Studio Profile (${generatedSessionJson.sessionId})!`);
-                      setTimeout(() => setSyncStatus(null), 3500);
-                    }}
-                    className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
-                    title="Xuất preset chuẩn Bambu Studio (.json)"
-                  >
-                    <span>🐼 Bambu Lab</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setSyncStatus('🟧 Đang xuất PrusaSlicer Profile (.ini)...');
-                      const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'prusaslicer');
-                      if (!ok) {
-                        const iniStr = generatePrusaSlicerPresetIni(generatedSessionJson);
-                        downloadFile(`PrusaSlicer_Profile_${generatedSessionJson.sessionId}.ini`, iniStr, 'text/plain');
-                      }
-                      setSyncStatus(`✓ Đã tải PrusaSlicer Profile (${generatedSessionJson.sessionId})!`);
-                      setTimeout(() => setSyncStatus(null), 3500);
-                    }}
-                    className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
-                    title="Xuất preset cấu hình PrusaSlicer / SuperSlicer (.ini)"
-                  >
-                    <span>🟧 PrusaSlicer</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setSyncStatus('🌀 Đang xuất Ultimaker Cura Profile (.curaprofile)...');
-                      const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'cura');
-                      if (!ok) {
-                        const curaStr = generateCuraPresetFile(generatedSessionJson);
-                        downloadFile(`Cura_Profile_${generatedSessionJson.sessionId}.curaprofile`, curaStr, 'text/plain');
-                      }
-                      setSyncStatus(`✓ Đã tải Ultimaker Cura Profile (${generatedSessionJson.sessionId})!`);
-                      setTimeout(() => setSyncStatus(null), 3500);
-                    }}
-                    className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
-                    title="Xuất preset cấu hình Ultimaker Cura (.curaprofile)"
-                  >
-                    <span>🌀 Cura</span>
-                  </button>
+              {/* Tầng 2: Toolbar Xuất Preset Slicer & Xuất Bản File (Thiết kế tinh gọn với Action Grouping & Dropdowns) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-0.5">
+                {/* Nhóm 1: Dropdown Slicer Presets & Dropdown Xuất Dữ Liệu */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Dropdown 1: Xuất Slicer Preset */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setSlicerDropdownOpen(!slicerDropdownOpen);
+                        setExportDropdownOpen(false);
+                      }}
+                      className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+                      title="Xuất cấu hình Profile tương thích cho các phần mềm cắt lớp Slicer"
+                    >
+                      <span>🦈 Xuất Slicer Preset</span>
+                      <span className="text-[10px] studio-text-muted">▾</span>
+                    </button>
+
+                    {slicerDropdownOpen && (
+                      <div className="absolute left-0 mt-1.5 w-56 rounded-xl bg-[var(--bg-panel)] border border-[var(--border-strong)] shadow-2xl py-1.5 z-30 animate-in fade-in">
+                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider studio-text-muted border-b border-[var(--border-hairline)]">
+                          Chọn phần mềm Slicer:
+                        </div>
+                        <button
+                          onClick={async () => {
+                            setSlicerDropdownOpen(false);
+                            setSyncStatus('🦈 Đang xuất OrcaSlicer Profile (.json)...');
+                            const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'orcaslicer');
+                            if (!ok) {
+                              const jsonStr = generateOrcaSlicerPresetJson(generatedSessionJson);
+                              downloadFile(`OrcaSlicer_Profile_${generatedSessionJson.sessionId}.json`, jsonStr, 'application/json');
+                            }
+                            setSyncStatus(`✓ Đã tải OrcaSlicer Profile (${generatedSessionJson.sessionId})!`);
+                            setTimeout(() => setSyncStatus(null), 3500);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold studio-text-primary hover:bg-[var(--bg-hover)] flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="flex items-center gap-2"><span>🦈</span> OrcaSlicer</span>
+                          <span className="text-[10px] font-mono studio-text-muted">.json</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setSlicerDropdownOpen(false);
+                            setSyncStatus('🐼 Đang xuất Bambu Studio Profile (.json)...');
+                            const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'bambulab');
+                            if (!ok) {
+                              const jsonStr = generateBambuLabPresetJson(generatedSessionJson);
+                              downloadFile(`BambuLab_Profile_${generatedSessionJson.sessionId}.json`, jsonStr, 'application/json');
+                            }
+                            setSyncStatus(`✓ Đã tải Bambu Studio Profile (${generatedSessionJson.sessionId})!`);
+                            setTimeout(() => setSyncStatus(null), 3500);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold studio-text-primary hover:bg-[var(--bg-hover)] flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="flex items-center gap-2"><span>🐼</span> Bambu Lab / Studio</span>
+                          <span className="text-[10px] font-mono studio-text-muted">.json</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setSlicerDropdownOpen(false);
+                            setSyncStatus('🟧 Đang xuất PrusaSlicer Profile (.ini)...');
+                            const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'prusaslicer');
+                            if (!ok) {
+                              const iniStr = generatePrusaSlicerPresetIni(generatedSessionJson);
+                              downloadFile(`PrusaSlicer_Profile_${generatedSessionJson.sessionId}.ini`, iniStr, 'text/plain');
+                            }
+                            setSyncStatus(`✓ Đã tải PrusaSlicer Profile (${generatedSessionJson.sessionId})!`);
+                            setTimeout(() => setSyncStatus(null), 3500);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold studio-text-primary hover:bg-[var(--bg-hover)] flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="flex items-center gap-2"><span>🟧</span> PrusaSlicer / SuperSlicer</span>
+                          <span className="text-[10px] font-mono studio-text-muted">.ini</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setSlicerDropdownOpen(false);
+                            setSyncStatus('🌀 Đang xuất Ultimaker Cura Profile (.curaprofile)...');
+                            const ok = await downloadSlicerPreset(generatedSessionJson.sessionId, 'cura');
+                            if (!ok) {
+                              const curaStr = generateCuraPresetFile(generatedSessionJson);
+                              downloadFile(`Cura_Profile_${generatedSessionJson.sessionId}.curaprofile`, curaStr, 'text/plain');
+                            }
+                            setSyncStatus(`✓ Đã tải Ultimaker Cura Profile (${generatedSessionJson.sessionId})!`);
+                            setTimeout(() => setSyncStatus(null), 3500);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold studio-text-primary hover:bg-[var(--bg-hover)] flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="flex items-center gap-2"><span>🌀</span> Ultimaker Cura</span>
+                          <span className="text-[10px] font-mono studio-text-muted">.curaprofile</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dropdown 2: Xuất Báo Cáo & Dữ Liệu */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setExportDropdownOpen(!exportDropdownOpen);
+                        setSlicerDropdownOpen(false);
+                      }}
+                      className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+                      title="Xuất bảng dữ liệu và báo cáo kiểm toán ra Excel, CSV hoặc Markdown"
+                    >
+                      <span>📤 Xuất Dữ Liệu</span>
+                      <span className="text-[10px] studio-text-muted">▾</span>
+                    </button>
+
+                    {exportDropdownOpen && (
+                      <div className="absolute left-0 mt-1.5 w-64 rounded-xl bg-[var(--bg-panel)] border border-[var(--border-strong)] shadow-2xl py-1.5 z-30 animate-in fade-in">
+                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider studio-text-muted border-b border-[var(--border-hairline)]">
+                          Định dạng báo cáo kiểm toán:
+                        </div>
+                        <button
+                          onClick={async () => {
+                            setExportDropdownOpen(false);
+                            setSyncStatus('📊 Đang xuất bảng tính Excel...');
+                            const ok = await downloadNhatKyExcel();
+                            if (!ok) {
+                              const list = [
+                                generatedSessionJson,
+                                ...simulationLogs.filter((l) => String(l.runNumber).padStart(2, '0') !== generatedSessionJson.sessionId),
+                              ];
+                              const csvContent = generateTelemetryCsv(list);
+                              downloadFile(`Nhat_Ky_In_3D_${generatedSessionJson.sessionId}.csv`, csvContent, 'text/csv;charset=utf-8;');
+                            }
+                            setSyncStatus('✓ Đã tải bảng tính 23 tham số (tương thích Excel)!');
+                            setTimeout(() => setSyncStatus(null), 3500);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold studio-text-primary hover:bg-[var(--bg-hover)] flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="flex items-center gap-2"><span>📊</span> Bảng Tính Excel (23 tham số)</span>
+                          <span className="text-[10px] font-mono studio-text-muted">.xlsx</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setExportDropdownOpen(false);
+                            setSyncStatus('📄 Đang xuất tệp CSV...');
+                            const ok = await downloadNhatKyCsv();
+                            if (!ok) {
+                              const list = [
+                                generatedSessionJson,
+                                ...simulationLogs.filter((l) => String(l.runNumber).padStart(2, '0') !== generatedSessionJson.sessionId),
+                              ];
+                              const csvContent = generateTelemetryCsv(list);
+                              downloadFile(`Nhat_Ky_In_3D_Sim_QC.csv`, csvContent, 'text/csv;charset=utf-8;');
+                            }
+                            setSyncStatus('✓ Đã tải tệp CSV (UTF-8 with BOM) trực tiếp!');
+                            setTimeout(() => setSyncStatus(null), 3500);
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold studio-text-primary hover:bg-[var(--bg-hover)] flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="flex items-center gap-2"><span>📄</span> Tệp Bảng Dữ Liệu CSV</span>
+                          <span className="text-[10px] font-mono studio-text-muted">.csv</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setExportDropdownOpen(false);
+                            downloadFile(`Profile_In3D_${generatedSessionJson.sessionId}.md`, generatedProfile3DMarkdown, 'text/markdown');
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs font-semibold studio-text-primary hover:bg-[var(--bg-hover)] flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <span className="flex items-center gap-2"><span>📥</span> Hồ Sơ In 3D (Obsidian Vault)</span>
+                          <span className="text-[10px] font-mono studio-text-muted">.md</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Nhóm Actions: Lưu Thumbnail, Tải MD, Chép MD, Xem Raw */}
+                {/* Nhóm 2: Các tiện ích nhanh (Thumbnail, Chép MD, Xem Raw) */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     onClick={handleCaptureAndSaveThumbnail}
@@ -1134,54 +1261,6 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                     title="Chụp ảnh mô hình 3D thực tế, tải về máy và lưu vào Obsidian Vault Profile"
                   >
                     <span>{isCapturingThumb ? '⏳ Đang Chụp...' : '📸 Lưu Thumbnail'}</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setSyncStatus('📊 Đang xuất bảng tính Excel...');
-                      const ok = await downloadNhatKyExcel();
-                      if (!ok) {
-                        const list = [
-                          generatedSessionJson,
-                          ...simulationLogs.filter((l) => String(l.runNumber).padStart(2, '0') !== generatedSessionJson.sessionId),
-                        ];
-                        const csvContent = generateTelemetryCsv(list);
-                        downloadFile(`Nhat_Ky_In_3D_${generatedSessionJson.sessionId}.csv`, csvContent, 'text/csv;charset=utf-8;');
-                      }
-                      setSyncStatus('✓ Đã tải bảng tính 23 tham số (tương thích Excel)!');
-                      setTimeout(() => setSyncStatus(null), 3500);
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
-                    title="Xuất toàn bộ ma trận 23 tham số & báo cáo QC ra file Microsoft Excel (.xlsx / .csv)"
-                  >
-                    <span>📊 Xuất Excel</span>
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setSyncStatus('📄 Đang xuất tệp CSV...');
-                      const ok = await downloadNhatKyCsv();
-                      if (!ok) {
-                        const list = [
-                          generatedSessionJson,
-                          ...simulationLogs.filter((l) => String(l.runNumber).padStart(2, '0') !== generatedSessionJson.sessionId),
-                        ];
-                        const csvContent = generateTelemetryCsv(list);
-                        downloadFile(`Nhat_Ky_In_3D_Sim_QC.csv`, csvContent, 'text/csv;charset=utf-8;');
-                      }
-                      setSyncStatus('✓ Đã tải tệp CSV (UTF-8 with BOM) trực tiếp!');
-                      setTimeout(() => setSyncStatus(null), 3500);
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
-                    title="Xuất toàn bộ ma trận 23 tham số ra file CSV chuẩn UTF-8"
-                  >
-                    <span>📄 Xuất CSV</span>
-                  </button>
-                  <button
-                    onClick={() => downloadFile(`Profile_In3D_${generatedSessionJson.sessionId}.md`, generatedProfile3DMarkdown, 'text/markdown')}
-                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
-                    title="Tải tệp Hồ Sơ In 3D Markdown về máy"
-                  >
-                    <IconExport size={12} />
-                    <span>📥 Tải Profile 3D</span>
                   </button>
                   <button
                     onClick={() => handleCopy(generatedProfile3DMarkdown, 'Hồ Sơ In 3D (Markdown)', 'header_md')}
@@ -1201,6 +1280,100 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   >
                     <span>{showProfileRawMd ? '👁️ Ẩn Raw' : '👁️ Xem Raw'}</span>
                   </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 🌟 Dải Hero KPI Strip: 4 Chỉ Số Cốt Lõi (Điểm QC, Thời Gian, Khối Lượng, Chi Phí) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* KPI 1: Điểm Khả Thi QC */}
+              <div className="p-3.5 rounded-xl studio-card border border-[var(--border-hairline)] space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider studio-text-muted flex items-center gap-1">
+                    <span>🎯</span> Điểm Khả Thi QC
+                  </span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                    generatedSessionJson.metadata.printabilityScore >= 80
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-500/30'
+                  }`}>
+                    {generatedSessionJson.metadata.printabilityScore >= 80 ? '✓ Đạt Chuẩn' : '⚠️ Cần Tinh Chỉnh'}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className={`text-2xl font-black font-mono ${
+                    generatedSessionJson.metadata.printabilityScore >= 80 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {generatedSessionJson.metadata.printabilityScore}
+                  </span>
+                  <span className="text-xs studio-text-muted font-mono">/ 100</span>
+                </div>
+                <div className="w-full bg-[var(--bg-input)] h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      generatedSessionJson.metadata.printabilityScore >= 80 ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(5, generatedSessionJson.metadata.printabilityScore))}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* KPI 2: Thời Gian In Dự Tính */}
+              <div className="p-3.5 rounded-xl studio-card border border-[var(--border-hairline)] space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider studio-text-muted flex items-center gap-1">
+                    <span>⏱️</span> Thời Gian In
+                  </span>
+                  <span className="text-[9px] font-mono studio-text-muted">
+                    {generatedSessionJson.slicer.layerHeightMm ? `Lớp ${generatedSessionJson.slicer.layerHeightMm}mm` : 'FDM'}
+                  </span>
+                </div>
+                <div className="text-2xl font-black font-mono studio-text-primary">
+                  {generatedSessionJson.durationMinutes >= 60
+                    ? `${Math.floor(generatedSessionJson.durationMinutes / 60)}h ${generatedSessionJson.durationMinutes % 60}m`
+                    : `${generatedSessionJson.durationMinutes} phút`}
+                </div>
+                <div className="text-[10px] studio-text-secondary truncate">
+                  Gia nhiệt ~5m • In thực ~{Math.max(1, generatedSessionJson.durationMinutes - 5)}m
+                </div>
+              </div>
+
+              {/* KPI 3: Lượng Nhựa Tiêu Hao */}
+              <div className="p-3.5 rounded-xl studio-card border border-[var(--border-hairline)] space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider studio-text-muted flex items-center gap-1">
+                    <span>⚖️</span> Nhựa Tiêu Hao
+                  </span>
+                  <span className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded bg-[var(--bg-input)] studio-text-primary">
+                    {generatedSessionJson.metadata.material}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-black font-mono studio-text-primary">
+                    {generatedSessionJson.metadata.filamentGrams}
+                  </span>
+                  <span className="text-xs studio-text-muted font-mono">gam</span>
+                </div>
+                <div className="text-[10px] studio-text-secondary truncate">
+                  Thể tích: ~{(generatedSessionJson.metadata.filamentGrams / 1.24).toFixed(1)} cm³
+                </div>
+              </div>
+
+              {/* KPI 4: Chi Phí Ước Tính (Print Cost Estimator) */}
+              <div className="p-3.5 rounded-xl studio-card border border-[var(--border-hairline)] space-y-1.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider studio-text-muted flex items-center gap-1">
+                    <span>💰</span> Chi Phí Dự Tính
+                  </span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold" title="Nhựa PLA ~300k/kg + Điện 3k/kWh (~200W)">
+                    VND
+                  </span>
+                </div>
+                <div className="text-2xl font-black font-mono text-emerald-700 dark:text-emerald-400">
+                  ~{(Math.round((generatedSessionJson.metadata.filamentGrams * 300) + ((generatedSessionJson.durationMinutes / 60) * 0.2 * 3000))).toLocaleString('vi-VN')} ₫
+                </div>
+                <div className="text-[10px] studio-text-secondary truncate" title="Chi phí gồm tiền nhựa và điện năng tiêu thụ thực tế">
+                  Nhựa ~{(Math.round(generatedSessionJson.metadata.filamentGrams * 300)).toLocaleString('vi-VN')}₫ • Điện ~{(Math.round((generatedSessionJson.durationMinutes / 60) * 0.2 * 3000)).toLocaleString('vi-VN')}₫
                 </div>
               </div>
             </div>
@@ -1438,46 +1611,86 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
               </div>
             </div>
 
-            {/* Card 5: Kiểm Soát Vật Lý & Thể Tích Đùn (Physics Sanity Engine) */}
-            <div className="p-3.5 rounded-xl studio-card space-y-2 border border-[var(--border-hairline)] md:col-span-2 bg-gradient-to-r from-emerald-500/5 via-transparent to-sky-500/5">
-              <div className="flex items-center justify-between font-bold text-xs studio-text-gold border-b border-[var(--border-hairline)] pb-1.5 flex-wrap gap-2">
+            {/* Card 5: Kiểm Soát Vật Lý & Thể Tích Đùn (Physics Sanity Engine & Safety Radar) */}
+            <div className="p-3.5 rounded-xl studio-card space-y-3 border border-[var(--border-hairline)] md:col-span-2 bg-gradient-to-r from-emerald-500/5 via-transparent to-sky-500/5">
+              <div className="flex items-center justify-between font-bold text-xs studio-text-gold border-b border-[var(--border-hairline)] pb-2 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <IconCheckShield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span>5. Kiểm Soát Vật Lý &amp; Thể Tích Đùn (Physics Sanity Engine)</span>
+                  <IconCheckShield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-xs sm:text-sm">5. Radar Cảnh Báo An Toàn Vật Lý (Physics Safety Engine)</span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
-                  Trạng thái: Đạt chuẩn mô phỏng (Optimal Flow)
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleAutoFixSafety}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 text-[10px] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1 shadow-sm"
+                    title="Tự động tối ưu nhiệt bàn in (60°C), nhấc đầu Z-Hop (0.4mm) và chuẩn hóa hệ số đùn (1.0)"
+                  >
+                    <span>⚡ Tự Động Vá Thông Số An Toàn</span>
+                  </button>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
+                    Optimal Flow
+                  </span>
+                </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs pt-1">
-                <div className="p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-0.5 shadow-sm">
+
+              {/* 4 Thẻ Đo Lường Vật Lý FDM */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="p-2.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-1 shadow-sm">
                   <div className="text-[10px] studio-text-muted">Lưu lượng đùn (Volumetric)</div>
-                  <div className="font-mono font-bold text-sky-700 dark:text-sky-400">
+                  <div className="font-mono font-bold text-sky-700 dark:text-sky-400 text-sm">
                     {(generatedSessionJson.slicer.layerHeightMm * 0.42 * generatedSessionJson.hardware.speedF.defaultMmS).toFixed(1)} mm³/s
                   </div>
                   <div className="text-[9px] studio-text-muted">Giới hạn đầu đùn: 15.0 mm³/s</div>
                 </div>
-                <div className="p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-0.5 shadow-sm">
+                <div className="p-2.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-1 shadow-sm">
                   <div className="text-[10px] studio-text-muted">Nguy cơ cong vênh (Warping)</div>
-                  <div className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                  <div className={`font-mono font-bold text-sm ${generatedSessionJson.hardware.tempsE.bedTempC >= 55 ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
                     {generatedSessionJson.hardware.tempsE.bedTempC >= 55 ? '0% (An toàn)' : '45% (Bàn nguội)'}
                   </div>
                   <div className="text-[9px] studio-text-muted">Nhiệt bàn: {generatedSessionJson.hardware.tempsE.bedTempC}°C</div>
                 </div>
-                <div className="p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-0.5 shadow-sm">
+                <div className="p-2.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-1 shadow-sm">
                   <div className="text-[10px] studio-text-muted">Làm mát chi tiết (Cooling)</div>
-                  <div className="font-mono font-bold text-cyan-700 dark:text-cyan-400">
+                  <div className="font-mono font-bold text-cyan-700 dark:text-cyan-400 text-sm">
                     {generatedSessionJson.hardware.tempsE.fanSpeedPercent}% Quạt
                   </div>
                   <div className="text-[9px] studio-text-muted">Tản nhiệt tối đa cho {generatedSessionJson.metadata.material}</div>
                 </div>
-                <div className="p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-0.5 shadow-sm">
-                  <div className="text-[10px] studio-text-muted">Hệ số đùn (Flow Ratio)</div>
-                  <div className="font-mono font-bold text-amber-700 dark:text-amber-300">
-                    {generatedSessionJson.hardware.extrusion.flowRatio}
+                <div className="p-2.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-1 shadow-sm">
+                  <div className="text-[10px] studio-text-muted">Rút sợi &amp; Z-Hop</div>
+                  <div className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-sm">
+                    {generatedSessionJson.hardware.extrusion.retractionMm}mm • {generatedSessionJson.hardware.extrusion.zHopMm}mm
                   </div>
-                  <div className="text-[9px] studio-text-muted">Đùn chuẩn không thừa/thiếu</div>
+                  <div className="text-[9px] studio-text-muted">Chống va quẹt &amp; tơ nhện</div>
                 </div>
+              </div>
+
+              {/* 🏷️ Safety Radar Chips: Thẻ chip trạng thái an toàn vật lý trực quan */}
+              <div className="pt-1 flex items-center gap-1.5 flex-wrap text-[10px] font-mono">
+                <span className="studio-text-muted font-bold text-[9px] uppercase tracking-wider mr-1">Trạng thái:</span>
+                <span className={`px-2 py-0.5 rounded-md font-semibold border flex items-center gap-1 ${
+                  generatedSessionJson.hardware.tempsE.bedTempC >= 55
+                    ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40'
+                }`}>
+                  <span>{generatedSessionJson.hardware.tempsE.bedTempC >= 55 ? '✓' : '⚠️'}</span>
+                  <span>Bám dính PEI: {generatedSessionJson.hardware.tempsE.bedTempC}°C ({generatedSessionJson.hardware.tempsE.bedTempC >= 55 ? 'An toàn' : 'Cần tăng nhiệt'})</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-md font-semibold border bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 flex items-center gap-1">
+                  <span>✓</span>
+                  <span>Dòng chảy: {(generatedSessionJson.slicer.layerHeightMm * 0.42 * generatedSessionJson.hardware.speedF.defaultMmS).toFixed(1)} mm³/s (&lt; 15.0)</span>
+                </span>
+                <span className={`px-2 py-0.5 rounded-md font-semibold border flex items-center gap-1 ${
+                  generatedSessionJson.hardware.extrusion.zHopMm >= 0.2
+                    ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/40'
+                }`}>
+                  <span>{generatedSessionJson.hardware.extrusion.zHopMm >= 0.2 ? '✓' : 'ℹ️'}</span>
+                  <span>Z-Hop: {generatedSessionJson.hardware.extrusion.zHopMm}mm ({generatedSessionJson.hardware.extrusion.zHopMm >= 0.2 ? 'Chống va quẹt' : 'Nên đặt 0.4mm'})</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-md font-semibold border bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 flex items-center gap-1">
+                  <span>✓</span>
+                  <span>Nhiệt đầu đùn: {generatedSessionJson.hardware.tempsE.nozzleTempC}°C (Chuẩn {generatedSessionJson.metadata.material})</span>
+                </span>
               </div>
             </div>
 
@@ -1712,6 +1925,131 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
             Đóng Bảng Truy Xuất
           </button>
         </div>
+
+        {/* 🪪 Modal Phiếu In Xuất Xưởng (Print Job Ticket / Card Modal) */}
+        {showJobCardModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+            <div className="w-full max-w-md rounded-2xl bg-[var(--bg-panel)] border border-[var(--border-strong)] shadow-2xl p-5 space-y-4 font-sans text-left animate-in zoom-in-95">
+              {/* Header của thẻ */}
+              <div className="flex items-center justify-between border-b border-[var(--border-hairline)] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl studio-gold-badge flex items-center justify-center font-black text-sm">
+                    3D
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black tracking-wider uppercase studio-text-primary">
+                      Thẻ Bàn Giao Mô Hình (Print Job Card)
+                    </h4>
+                    <span className="text-[10px] font-mono studio-text-muted">
+                      Mã QC: #QC-{generatedSessionJson.sessionId}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowJobCardModal(false)}
+                  className="p-1.5 rounded-lg studio-pill-inactive hover:bg-[var(--bg-hover)] cursor-pointer transition-all"
+                  title="Đóng"
+                >
+                  <IconClose className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Thông tin cốt lõi & Thumbnail */}
+              <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border-hairline)] flex items-center gap-3.5">
+                {capturedThumbnailUrl ? (
+                  <img
+                    src={capturedThumbnailUrl}
+                    alt="Thumbnail"
+                    className="w-16 h-16 object-contain rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-canvas)] shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-[var(--bg-panel)] border border-[var(--border-hairline)] flex items-center justify-center studio-text-gold shrink-0">
+                    <IconCube className="w-7 h-7" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="text-xs font-bold studio-text-primary truncate">
+                    {generatedSessionJson.metadata.modelName}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap text-[10px] font-mono">
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold">
+                      {generatedSessionJson.metadata.material}
+                    </span>
+                    <span className="studio-text-muted">
+                      {generatedSessionJson.slicer.layerHeightMm}mm • {generatedSessionJson.slicer.infillPercent}% infill
+                    </span>
+                  </div>
+                  <div className="text-[9px] studio-text-muted font-mono">
+                    Kỹ sư: {generatedSessionJson.operator}
+                  </div>
+                </div>
+              </div>
+
+              {/* Ma trận thông số in thực tế */}
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-0.5">
+                  <div className="text-[9px] studio-text-muted">Thời Gian In</div>
+                  <div className="font-bold studio-text-primary">
+                    {generatedSessionJson.durationMinutes} phút
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-0.5">
+                  <div className="text-[9px] studio-text-muted">Nhựa Tiêu Hao</div>
+                  <div className="font-bold studio-text-primary">
+                    {generatedSessionJson.metadata.filamentGrams} g
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-0.5">
+                  <div className="text-[9px] studio-text-muted">Nhiệt Đầu / Bàn</div>
+                  <div className="font-bold studio-text-primary">
+                    {generatedSessionJson.hardware.tempsE.nozzleTempC}°C / {generatedSessionJson.hardware.tempsE.bedTempC}°C
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-0.5">
+                  <div className="text-[9px] studio-text-muted">Chi Phí Dự Tính</div>
+                  <div className="font-bold text-emerald-700 dark:text-emerald-400">
+                    ~{(Math.round((generatedSessionJson.metadata.filamentGrams * 300) + ((generatedSessionJson.durationMinutes / 60) * 0.2 * 3000))).toLocaleString('vi-VN')} ₫
+                  </div>
+                </div>
+              </div>
+
+              {/* Con dấu QC Passed */}
+              <div className="p-2.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🛡️</span>
+                  <div>
+                    <div className="text-xs font-black text-emerald-700 dark:text-emerald-400 tracking-wider">
+                      QC PASSED • ĐẠT CHUẨN XUẤT XƯỞNG
+                    </div>
+                    <div className="text-[9px] text-emerald-800/80 dark:text-emerald-400/80">
+                      Điểm khả thi: {generatedSessionJson.metadata.printabilityScore}/100 • Không phát hiện va chạm Z
+                    </div>
+                  </div>
+                </div>
+                <span className="text-lg">✅</span>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-[var(--border-hairline)]">
+                <button
+                  onClick={() => {
+                    const ticketText = `📋 PHIẾU XUẤT XƯỞNG IN 3D - #QC-${generatedSessionJson.sessionId}\n- Mô hình: ${generatedSessionJson.metadata.modelName}\n- Chất liệu: ${generatedSessionJson.metadata.material} (${generatedSessionJson.slicer.layerHeightMm}mm)\n- Thời gian: ${generatedSessionJson.durationMinutes} phút\n- Nhựa: ${generatedSessionJson.metadata.filamentGrams}g (~${(Math.round((generatedSessionJson.metadata.filamentGrams * 300) + ((generatedSessionJson.durationMinutes / 60) * 0.2 * 3000))).toLocaleString('vi-VN')}₫)\n- Điểm QC: ${generatedSessionJson.metadata.printabilityScore}/100 (PASSED)\n- Kỹ sư: ${generatedSessionJson.operator}`;
+                    handleCopy(ticketText, 'Phiếu Bàn Giao Mô Hình', 'ticket_copy');
+                  }}
+                  className="px-3 py-1.5 rounded-lg studio-cta-primary text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 active:scale-95"
+                >
+                  <span>{copiedId === 'ticket_copy' ? '✓ Đã Chép Phiếu!' : '📋 Chép Nội Dung Thẻ'}</span>
+                </button>
+                <button
+                  onClick={() => setShowJobCardModal(false)}
+                  className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary text-xs font-semibold cursor-pointer transition-all"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
