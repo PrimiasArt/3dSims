@@ -25,6 +25,7 @@ import {
   generatePrusaSlicerPresetIni,
   generateCuraPresetFile,
   generateTelemetryCsv,
+  copyTextToClipboard,
 } from '@/services/slicerExporter';
 import {
   IconTerminal,
@@ -192,6 +193,7 @@ export function LiveReportInspectorModal({
   // Nguồn tham số được chọn: 'live' (Studio trực tiếp), 'preset:<id>' (Hồ sơ mẫu chuẩn), hoặc ID bản ghi Nhật ký mô phỏng
   const [selectedSourceId, setSelectedSourceId] = useState<string>('live');
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [isSyncingBackend, setIsSyncingBackend] = useState<boolean>(false);
   const [isSavingVault, setIsSavingVault] = useState<boolean>(false);
@@ -581,10 +583,20 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
     setTimeout(() => setSyncStatus(null), 5000);
   };
 
-  const handleCopy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopyStatus(`✓ Đã sao chép ${label}!`);
-    setTimeout(() => setCopyStatus(null), 2500);
+  const handleCopy = async (text: string, label: string, key?: string) => {
+    const success = await copyTextToClipboard(text);
+    if (success) {
+      if (key) {
+        setCopiedId(key);
+        setTimeout(() => {
+          setCopiedId((curr) => (curr === key ? null : curr));
+        }, 2500);
+      }
+      setCopyStatus(`✓ Đã sao chép ${label} vào Clipboard!`);
+    } else {
+      setCopyStatus(`⚠️ Trình duyệt chặn tự động chép, vui lòng sao chép thủ công.`);
+    }
+    setTimeout(() => setCopyStatus(null), 3000);
   };
 
   if (!isOpen) return null;
@@ -592,6 +604,14 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
       <div className="relative w-full max-w-4xl lg:max-w-5xl rounded-2xl glass-panel shadow-2xl max-h-[92vh] flex flex-col overflow-hidden studio-text-primary animate-in zoom-in-95">
+        {/* Toast thông báo nổi (Luôn hiển thị cố định ở trên cùng kể cả khi cuộn nội dung modal) */}
+        {(syncStatus || copyStatus) && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[70] px-4 py-2 rounded-xl bg-emerald-950/95 border border-emerald-500/50 text-emerald-300 text-xs font-semibold shadow-2xl backdrop-blur-md flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2 pointer-events-none">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            <span>{syncStatus || copyStatus}</span>
+          </div>
+        )}
+
         {/* Header - Cố định phía trên (Fixed Header, không bị cuộn mất nút) */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 sm:py-4 border-b studio-border shrink-0 bg-[var(--bg-panel)]">
           <div className="flex items-center gap-3">
@@ -603,7 +623,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <h2 className="text-base sm:text-lg font-bold studio-text-primary tracking-tight">
                   Truy Xuất Tham Số Nhật Ký (Live Telemetry &amp; Report Inspector)
                 </h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md studio-gold-badge font-semibold">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--bg-input)] border border-[var(--border-hairline)] studio-text-secondary font-semibold">
                   {sessionId}
                 </span>
               </div>
@@ -679,17 +699,17 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                     setSyncStatus(`✓ Đã nạp Profile "${generatedSessionJson.metadata.triggerLabel}" ra Studio!`);
                     setTimeout(() => setSyncStatus(null), 3500);
                   }}
-                  className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
                   title="Nạp bộ thông số này làm Profile chính trên bàn in 3D Studio"
                 >
-                  <IconReset size={12} />
+                  <IconReset size={12} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>Nạp Ra Studio</span>
                 </button>
               )}
               <button
                 onClick={handleSaveToVault}
                 disabled={isSavingVault}
-                className="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 border border-amber-500/40 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                className="px-3.5 py-1.5 rounded-lg studio-cta-primary text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm disabled:opacity-50"
                 title="Lưu các thông số mới này vào Obsidian Vault (.md) và JsonLogs (.json)"
               >
                 <IconExport size={12} />
@@ -699,7 +719,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <button
                   onClick={handleSyncToBackend}
                   disabled={isSyncingBackend}
-                  className="px-3 py-1.5 rounded-lg studio-gold-badge hover:bg-[var(--accent-gold)] hover:text-[#0b0c0e] text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-gold border border-[var(--accent-gold-border)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
                   title="Ghi nhận bộ thông số này sang Backend Telemetry SQLite"
                 >
                   <IconTerminal size={12} />
@@ -711,8 +731,9 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
 
           {/* Toast thông báo nhanh */}
           {(syncStatus || copyStatus) && (
-            <div className="text-[11px] font-mono text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg animate-in fade-in">
-              {syncStatus || copyStatus}
+            <div className="text-[11px] font-mono studio-text-primary font-semibold bg-[var(--bg-input)] border border-[var(--border-strong)] px-2.5 py-1 rounded-lg animate-in fade-in flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span>{syncStatus || copyStatus}</span>
             </div>
           )}
 
@@ -726,14 +747,12 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <span className="text-[10px] font-mono studio-text-muted">
                   {selectedLog.timestamp}
                 </span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded studio-card text-[10px] font-mono">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded studio-card text-[10px] font-mono studio-text-primary font-bold">
                   <IconCube size={10} />
                   <span>{selectedLog.modelName}</span>
                 </span>
-                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                  selectedLog.score >= 80 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
-                }`}>
-                  Điểm QC: {selectedLog.score}/100
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-[var(--bg-input)] border border-[var(--border-hairline)] studio-text-primary">
+                  Điểm QC: <strong className={selectedLog.score >= 80 ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-amber-600 dark:text-amber-400 font-black'}>{selectedLog.score}/100</strong>
                 </span>
               </div>
               <div className="flex items-center gap-2 font-mono text-[10px] studio-text-secondary">
@@ -750,8 +769,9 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <span className="font-bold font-mono text-xs studio-text-gold">
                   Hồ Sơ Mẫu: {selectedPreset.name}
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 font-semibold">
-                  {selectedPreset.material} • {selectedPreset.layerHeight}mm • {selectedPreset.printSpeed}mm/s
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--bg-input)] border border-[var(--border-hairline)] studio-text-primary font-bold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  <span>{selectedPreset.material} • {selectedPreset.layerHeight}mm • {selectedPreset.printSpeed}mm/s</span>
                 </span>
                 <span className="text-[10px] studio-text-muted">
                   {selectedPreset.description}
@@ -770,8 +790,10 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
         <div className="flex items-center gap-2 border-b studio-border pb-2 flex-wrap">
           <button
             onClick={() => setActiveTab('locked_report')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'locked_report' ? 'studio-pill-active shadow-sm' : 'studio-pill-inactive'
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+              activeTab === 'locked_report'
+                ? 'studio-pill-active border-transparent shadow-sm'
+                : 'bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] border-[var(--border-hairline)] studio-text-secondary hover:studio-text-primary'
             }`}
           >
             <IconLayers className="w-3.5 h-3.5" />
@@ -779,8 +801,8 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
             <span
               className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
                 activeTab === 'locked_report'
-                  ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
-                  : 'studio-gold-badge'
+                  ? 'bg-amber-400/20 text-amber-200 border border-amber-400/30 font-bold'
+                  : 'bg-[var(--bg-input)] studio-text-secondary border border-[var(--border-hairline)] font-semibold'
               }`}
             >
               6
@@ -789,8 +811,10 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
 
           <button
             onClick={() => setActiveTab('profile_3d')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'profile_3d' ? 'studio-pill-active shadow-sm' : 'studio-pill-inactive'
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+              activeTab === 'profile_3d'
+                ? 'studio-pill-active border-transparent shadow-sm'
+                : 'bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] border-[var(--border-hairline)] studio-text-secondary hover:studio-text-primary'
             }`}
           >
             <IconCube className="w-3.5 h-3.5" />
@@ -798,8 +822,8 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
             <span
               className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
                 activeTab === 'profile_3d'
-                  ? 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/30'
-                  : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30'
+                  ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-400/40 font-bold'
+                  : 'bg-[var(--bg-input)] studio-text-secondary border border-[var(--border-hairline)] font-semibold'
               }`}
             >
               Executive
@@ -808,8 +832,10 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
 
           <button
             onClick={() => setActiveTab('all_app_params')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'all_app_params' ? 'studio-pill-active shadow-sm' : 'studio-pill-inactive'
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+              activeTab === 'all_app_params'
+                ? 'studio-pill-active border-transparent shadow-sm'
+                : 'bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] border-[var(--border-hairline)] studio-text-secondary hover:studio-text-primary'
             }`}
           >
             <IconSliders className="w-3.5 h-3.5" />
@@ -818,8 +844,10 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
 
           <button
             onClick={() => setActiveTab('preview_logs')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'preview_logs' ? 'studio-pill-active shadow-sm' : 'studio-pill-inactive'
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+              activeTab === 'preview_logs'
+                ? 'studio-pill-active border-transparent shadow-sm'
+                : 'bg-[var(--bg-subtle)] hover:bg-[var(--bg-hover)] border-[var(--border-hairline)] studio-text-secondary hover:studio-text-primary'
             }`}
           >
             <IconTerminal className="w-3.5 h-3.5" />
@@ -975,7 +1003,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
               {/* Tầng 1: Thông tin Profile, Điểm QC và các Thao Tác Cốt Lõi (Nạp Studio & Lưu Vault) */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 text-emerald-400">
+                  <div className="w-10 h-10 rounded-xl studio-gold-badge flex items-center justify-center shrink-0">
                     <IconCube className="w-5 h-5" />
                   </div>
                   <div>
@@ -983,17 +1011,16 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                       <h3 className="text-sm sm:text-base font-bold studio-text-primary tracking-tight">
                         Hồ Sơ Cấu Hình In 3D: PROFILE_{generatedSessionJson.sessionId}
                       </h3>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 font-semibold">
-                        {generatedSessionJson.metadata.material} • {generatedSessionJson.slicer.layerHeightMm}mm
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--bg-input)] border border-[var(--border-hairline)] studio-text-primary font-bold flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span>{generatedSessionJson.metadata.material} • {generatedSessionJson.slicer.layerHeightMm}mm</span>
                       </span>
-                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
-                        generatedSessionJson.metadata.printabilityScore >= 80 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
-                      }`}>
-                        Khả thi: {generatedSessionJson.metadata.printabilityScore}/100
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-[var(--bg-input)] border border-[var(--border-hairline)] studio-text-primary">
+                        Khả thi: <strong className={generatedSessionJson.metadata.printabilityScore >= 80 ? 'text-emerald-600 dark:text-emerald-400 font-black' : 'text-amber-600 dark:text-amber-400 font-black'}>{generatedSessionJson.metadata.printabilityScore}/100</strong>
                       </span>
                     </div>
                     <p className="text-xs studio-text-secondary mt-0.5">
-                      Tổng hợp thông số in 3D hoàn chỉnh, trực quan cho mọi role ngoài dev. Lưu tại: <code className="text-[10px] text-amber-300 font-mono">ObsidianVault/01_Profiles_In3D/Profile_In3D_{generatedSessionJson.sessionId}.md</code>
+                      Tổng hợp thông số in 3D hoàn chỉnh, trực quan cho mọi role ngoài dev. Lưu tại: <code className="text-[10px] studio-text-primary bg-[var(--bg-input)] px-2 py-0.5 rounded border border-[var(--border-hairline)] font-mono font-bold">ObsidianVault/01_Profiles_In3D/Profile_In3D_{generatedSessionJson.sessionId}.md</code>
                     </p>
                   </div>
                 </div>
@@ -1008,17 +1035,17 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                         setSyncStatus(`🔄 Đã áp dụng Hồ Sơ PROFILE_${generatedSessionJson.sessionId} trực tiếp vào 3D Studio!`);
                         setTimeout(() => setSyncStatus(null), 3500);
                       }}
-                      className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                      className="px-3 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
                       title="Áp dụng bộ thông số hồ sơ này trực tiếp vào bàn in 3D Studio"
                     >
-                      <IconReset size={12} />
+                      <IconReset size={12} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span>Nạp Ra Studio</span>
                     </button>
                   )}
                   <button
                     onClick={handleSaveToVault}
                     disabled={isSavingVault}
-                    className="px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 border border-amber-500/40 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm disabled:opacity-50"
+                    className="px-3.5 py-1.5 rounded-lg studio-cta-primary text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm disabled:opacity-50"
                     title="Lưu hoặc cập nhật hồ sơ in 3D này vào Obsidian Vault (.md) và JsonLogs (.json)"
                   >
                     <IconExport size={12} />
@@ -1031,7 +1058,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pt-0.5">
                 {/* Nhóm Xuất Slicer Presets Chuẩn (OrcaSlicer, Bambu Lab, PrusaSlicer, Ultimaker Cura) */}
                 <div className="flex items-center gap-1.5 p-1 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-hairline)] text-[10px] flex-wrap">
-                  <span className="studio-text-muted px-1.5 font-mono font-semibold">Xuất Slicer:</span>
+                  <span className="studio-text-secondary px-1.5 font-mono font-bold">Xuất Slicer:</span>
                   <button
                     onClick={async () => {
                       setSyncStatus('🦈 Đang xuất OrcaSlicer Profile (.json)...');
@@ -1043,10 +1070,10 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                       setSyncStatus(`✓ Đã tải OrcaSlicer Profile (${generatedSessionJson.sessionId})!`);
                       setTimeout(() => setSyncStatus(null), 3500);
                     }}
-                    className="px-2 py-1 rounded bg-sky-500/15 dark:bg-sky-500/25 hover:bg-sky-500/30 text-sky-800 dark:text-sky-300 font-semibold cursor-pointer transition-all active:scale-95"
+                    className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
                     title="Xuất preset chuẩn OrcaSlicer v2.x (.json)"
                   >
-                    🦈 OrcaSlicer
+                    <span>🦈 OrcaSlicer</span>
                   </button>
                   <button
                     onClick={async () => {
@@ -1059,10 +1086,10 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                       setSyncStatus(`✓ Đã tải Bambu Studio Profile (${generatedSessionJson.sessionId})!`);
                       setTimeout(() => setSyncStatus(null), 3500);
                     }}
-                    className="px-2 py-1 rounded bg-emerald-500/15 dark:bg-emerald-500/25 hover:bg-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-semibold cursor-pointer transition-all active:scale-95"
+                    className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
                     title="Xuất preset chuẩn Bambu Studio (.json)"
                   >
-                    🐼 Bambu Lab
+                    <span>🐼 Bambu Lab</span>
                   </button>
                   <button
                     onClick={async () => {
@@ -1075,10 +1102,10 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                       setSyncStatus(`✓ Đã tải PrusaSlicer Profile (${generatedSessionJson.sessionId})!`);
                       setTimeout(() => setSyncStatus(null), 3500);
                     }}
-                    className="px-2 py-1 rounded bg-amber-500/15 dark:bg-amber-500/25 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 font-semibold cursor-pointer transition-all active:scale-95"
+                    className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
                     title="Xuất preset cấu hình PrusaSlicer / SuperSlicer (.ini)"
                   >
-                    🟧 PrusaSlicer
+                    <span>🟧 PrusaSlicer</span>
                   </button>
                   <button
                     onClick={async () => {
@@ -1091,10 +1118,10 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                       setSyncStatus(`✓ Đã tải Ultimaker Cura Profile (${generatedSessionJson.sessionId})!`);
                       setTimeout(() => setSyncStatus(null), 3500);
                     }}
-                    className="px-2 py-1 rounded bg-blue-500/15 dark:bg-blue-500/25 hover:bg-blue-500/30 text-blue-800 dark:text-blue-300 font-semibold cursor-pointer transition-all active:scale-95"
+                    className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold cursor-pointer transition-all active:scale-95 flex items-center gap-1"
                     title="Xuất preset cấu hình Ultimaker Cura (.curaprofile)"
                   >
-                    🌀 Cura
+                    <span>🌀 Cura</span>
                   </button>
                 </div>
 
@@ -1103,7 +1130,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   <button
                     onClick={handleCaptureAndSaveThumbnail}
                     disabled={isCapturingThumb}
-                    className="px-2.5 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-800 dark:text-rose-300 border border-rose-500/40 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm disabled:opacity-50"
+                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm disabled:opacity-50"
                     title="Chụp ảnh mô hình 3D thực tế, tải về máy và lưu vào Obsidian Vault Profile"
                   >
                     <span>{isCapturingThumb ? '⏳ Đang Chụp...' : '📸 Lưu Thumbnail'}</span>
@@ -1123,7 +1150,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                       setSyncStatus('✓ Đã tải bảng tính 23 tham số (tương thích Excel)!');
                       setTimeout(() => setSyncStatus(null), 3500);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
+                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
                     title="Xuất toàn bộ ma trận 23 tham số & báo cáo QC ra file Microsoft Excel (.xlsx / .csv)"
                   >
                     <span>📊 Xuất Excel</span>
@@ -1143,29 +1170,33 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                       setSyncStatus('✓ Đã tải tệp CSV (UTF-8 with BOM) trực tiếp!');
                       setTimeout(() => setSyncStatus(null), 3500);
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-teal-600/15 hover:bg-teal-600/25 text-teal-800 dark:text-teal-300 border border-teal-500/40 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
+                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
                     title="Xuất toàn bộ ma trận 23 tham số ra file CSV chuẩn UTF-8"
                   >
                     <span>📄 Xuất CSV</span>
                   </button>
                   <button
                     onClick={() => downloadFile(`Profile_In3D_${generatedSessionJson.sessionId}.md`, generatedProfile3DMarkdown, 'text/markdown')}
-                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
                     title="Tải tệp Hồ Sơ In 3D Markdown về máy"
                   >
                     <IconExport size={12} />
                     <span>📥 Tải Profile 3D</span>
                   </button>
                   <button
-                    onClick={() => handleCopy(generatedProfile3DMarkdown, 'Hồ Sơ In 3D')}
-                    className="px-2.5 py-1.5 rounded-lg studio-gold-badge text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                    onClick={() => handleCopy(generatedProfile3DMarkdown, 'Hồ Sơ In 3D (Markdown)', 'header_md')}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm border ${
+                      copiedId === 'header_md'
+                        ? 'bg-emerald-500/25 text-emerald-950 dark:text-emerald-300 border-emerald-500/50'
+                        : 'studio-gold-badge'
+                    }`}
                     title="Sao chép nội dung Markdown hoàn chỉnh"
                   >
-                    <span>📋 Chép MD</span>
+                    <span>{copiedId === 'header_md' ? '✅ Đã Chép MD!' : '📋 Chép MD'}</span>
                   </button>
                   <button
                     onClick={() => setShowProfileRawMd(!showProfileRawMd)}
-                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
+                    className="px-2.5 py-1.5 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
                     title="Xem / Ẩn nội dung Markdown thô của Obsidian"
                   >
                     <span>{showProfileRawMd ? '👁️ Ẩn Raw' : '👁️ Xem Raw'}</span>
@@ -1199,16 +1230,17 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
             )}
 
             {/* ⚖️ Thanh So Sánh Đối Chiếu Phiên In (Session Diff & Benchmark Widget) */}
-            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 space-y-2.5 text-xs">
+            <div className="p-3.5 rounded-xl studio-card border border-[var(--border-hairline)] space-y-2.5 text-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold flex items-center gap-1.5 text-purple-800 dark:text-purple-300 uppercase tracking-wider text-[11px]">
-                    <span>⚖️ So Sánh Đối Chiếu Với Phiên Khác:</span>
+                  <span className="font-bold flex items-center gap-1.5 studio-text-primary uppercase tracking-wider text-[11px]">
+                    <span className="studio-text-gold">⚖️</span>
+                    <span>So Sánh Đối Chiếu Với Phiên Khác:</span>
                   </span>
                   <select
                     value={compareTargetId}
                     onChange={(e) => handleRunComparison(e.target.value)}
-                    className="bg-[var(--bg-input)] border border-purple-500/40 rounded-lg px-2.5 py-1 text-xs font-mono font-medium text-purple-900 dark:text-purple-200 focus:outline-none focus:border-purple-400 cursor-pointer shadow-sm"
+                    className="bg-[var(--bg-input)] border border-[var(--border-strong)] rounded-lg px-2.5 py-1 text-xs font-mono font-bold studio-text-primary focus:outline-none focus:border-[var(--accent-gold)] cursor-pointer shadow-sm"
                   >
                     <option value="" className="bg-[var(--bg-panel)] text-[var(--text-primary)]">-- Chọn phiên in để đối chiếu --</option>
                     {simulationLogs
@@ -1228,16 +1260,20 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => downloadFile(comparisonResult.markdown_filename || 'Comparison_Report.md', comparisonResult.markdown, 'text/markdown')}
-                      className="px-2 py-1 rounded bg-purple-500/15 hover:bg-purple-500/25 text-purple-800 dark:text-purple-300 border border-purple-500/30 font-semibold text-[10px] cursor-pointer transition-all"
+                      className="px-2.5 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] font-bold text-[10px] cursor-pointer transition-all"
                       title="Tải báo cáo so sánh đối chiếu Markdown về máy"
                     >
                       📥 Tải Báo Cáo So Sánh (.md)
                     </button>
                     <button
-                      onClick={() => handleCopy(comparisonResult.markdown, 'Báo Cáo So Sánh')}
-                      className="px-2 py-1 rounded studio-card text-purple-800 dark:text-purple-200 font-semibold text-[10px] cursor-pointer transition-all"
+                      onClick={() => handleCopy(comparisonResult.markdown, 'Báo Cáo So Sánh', 'compare_md')}
+                      className={`px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer transition-all flex items-center gap-1 border ${
+                        copiedId === 'compare_md'
+                          ? 'bg-emerald-500/25 text-emerald-950 dark:text-emerald-300 border-emerald-500/50'
+                          : 'studio-card hover:bg-[var(--bg-hover)] studio-text-primary border-[var(--border-hairline)]'
+                      }`}
                     >
-                      📋 Chép So Sánh
+                      <span>{copiedId === 'compare_md' ? '✅ Đã Chép So Sánh' : '📋 Chép So Sánh'}</span>
                     </button>
                   </div>
                 )}
@@ -1245,42 +1281,42 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
 
               {/* Kết quả so sánh đối chiếu */}
               {isComparing && (
-                <div className="text-[11px] font-mono text-purple-700 dark:text-purple-300 animate-pulse">
+                <div className="text-[11px] font-mono font-bold studio-text-gold animate-pulse">
                   ⏳ Đang tính toán ma trận chênh lệch và đối chiếu rủi ro vật lý...
                 </div>
               )}
 
               {comparisonResult && (
-                <div className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-purple-500/30 space-y-2">
+                <div className="p-3 rounded-lg bg-[var(--bg-input)] border border-[var(--border-hairline)] space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2 text-[11px]">
                     <span className="font-bold studio-text-primary font-mono">
                       #{comparisonResult.base_session_id} ➔ #{comparisonResult.target_session_id}
                     </span>
-                    <span className="font-semibold text-emerald-700 dark:text-emerald-400 font-mono">
+                    <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono">
                       {comparisonResult.verdict_badge}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center font-mono text-[10px]">
-                    <div className="p-1.5 rounded bg-[var(--bg-input)] border border-[var(--border-hairline)]">
+                    <div className="p-2 rounded bg-[var(--bg-panel)] border border-[var(--border-hairline)]">
                       <div className="studio-text-muted">Điểm QC</div>
-                      <div className={`font-bold ${comparisonResult.score_delta >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                      <div className={`font-black ${comparisonResult.score_delta >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
                         {comparisonResult.score_delta >= 0 ? `+${comparisonResult.score_delta}` : comparisonResult.score_delta} điểm
                       </div>
                     </div>
-                    <div className="p-1.5 rounded bg-[var(--bg-input)] border border-[var(--border-hairline)]">
+                    <div className="p-2 rounded bg-[var(--bg-panel)] border border-[var(--border-hairline)]">
                       <div className="studio-text-muted">Thời gian in</div>
-                      <div className="font-bold text-amber-700 dark:text-amber-300">
+                      <div className="font-black text-amber-700 dark:text-amber-300">
                         {comparisonResult.time_delta_minutes >= 0 ? `+${comparisonResult.time_delta_minutes}` : comparisonResult.time_delta_minutes} phút
                       </div>
                     </div>
-                    <div className="p-1.5 rounded bg-[var(--bg-input)] border border-[var(--border-hairline)]">
+                    <div className="p-2 rounded bg-[var(--bg-panel)] border border-[var(--border-hairline)]">
                       <div className="studio-text-muted">Nhựa tiêu hao</div>
-                      <div className="font-bold text-sky-700 dark:text-sky-300">
+                      <div className="font-black text-sky-700 dark:text-sky-300">
                         {comparisonResult.filament_delta_grams >= 0 ? `+${comparisonResult.filament_delta_grams}` : comparisonResult.filament_delta_grams}g
                       </div>
                     </div>
                   </div>
-                  <p className="text-[10px] text-purple-900 dark:text-purple-200/90 italic">
+                  <p className="text-[11px] studio-text-secondary italic font-medium">
                     💡 {comparisonResult.verdict_summary}
                   </p>
                 </div>
@@ -1302,15 +1338,15 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Chất liệu nhựa:</span>
-                    <span className="font-mono text-emerald-700 dark:text-emerald-400 font-semibold">{generatedSessionJson.metadata.material}</span>
+                    <span className="font-mono studio-text-primary font-bold">{generatedSessionJson.metadata.material}</span>
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Thời gian in ước tính:</span>
-                    <span className="font-mono studio-text-primary">{generatedSessionJson.durationMinutes} phút</span>
+                    <span className="font-mono studio-text-primary font-semibold">{generatedSessionJson.durationMinutes} phút</span>
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Lượng nhựa tiêu hao:</span>
-                    <span className="font-mono text-amber-700 dark:text-amber-300 font-bold">{generatedSessionJson.metadata.filamentGrams} g</span>
+                    <span className="font-mono studio-text-primary font-bold">{generatedSessionJson.metadata.filamentGrams} g</span>
                   </div>
                   <div className="flex justify-between py-0.5">
                     <span className="studio-text-secondary">Người thực hiện:</span>
@@ -1328,23 +1364,23 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Độ cao lớp (Layer Height):</span>
-                    <span className="font-mono text-sky-700 dark:text-sky-400 font-bold">{generatedSessionJson.slicer.layerHeightMm.toFixed(2)} mm</span>
+                    <span className="font-mono studio-text-primary font-bold">{generatedSessionJson.slicer.layerHeightMm.toFixed(2)} mm</span>
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Mật độ &amp; Dạng ruột:</span>
-                    <span className="font-mono studio-text-primary">{generatedSessionJson.slicer.infillPercent}% ({generatedSessionJson.slicer.infillType})</span>
+                    <span className="font-mono studio-text-primary font-semibold">{generatedSessionJson.slicer.infillPercent}% ({generatedSessionJson.slicer.infillType})</span>
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Độ dày vỏ ngoài (Wall Loops):</span>
-                    <span className="font-mono studio-text-primary">{generatedSessionJson.slicer.wallLoops} vòng</span>
+                    <span className="font-mono studio-text-primary font-semibold">{generatedSessionJson.slicer.wallLoops} vòng</span>
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Lớp Nóc / Lớp Đáy:</span>
-                    <span className="font-mono studio-text-primary">{generatedSessionJson.slicer.topBottomLayers.top} nóc / {generatedSessionJson.slicer.topBottomLayers.bottom} đáy</span>
+                    <span className="font-mono studio-text-primary font-semibold">{generatedSessionJson.slicer.topBottomLayers.top} nóc / {generatedSessionJson.slicer.topBottomLayers.bottom} đáy</span>
                   </div>
                   <div className="flex justify-between py-0.5">
                     <span className="studio-text-secondary">Giá đỡ (Support):</span>
-                    <span className="font-mono studio-text-primary">{generatedSessionJson.slicer.supportType} ({generatedSessionJson.slicer.supportOverhangAngle}°)</span>
+                    <span className="font-mono studio-text-primary font-semibold">{generatedSessionJson.slicer.supportType} ({generatedSessionJson.slicer.supportOverhangAngle}°)</span>
                   </div>
                 </div>
               </div>
@@ -1358,15 +1394,15 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Tốc độ in cơ sở (Base):</span>
-                    <span className="font-mono text-amber-700 dark:text-amber-300 font-bold">{generatedSessionJson.hardware.speedF.defaultMmS} mm/s</span>
+                    <span className="font-mono studio-text-primary font-bold">{generatedSessionJson.hardware.speedF.defaultMmS} mm/s</span>
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Tốc độ vách ngoài (Outer Wall):</span>
-                    <span className="font-mono studio-text-primary">{generatedSessionJson.hardware.speedF.wallMmS} mm/s</span>
+                    <span className="font-mono studio-text-primary font-semibold">{generatedSessionJson.hardware.speedF.wallMmS} mm/s</span>
                   </div>
                   <div className="flex justify-between py-0.5">
                     <span className="studio-text-secondary">Tốc độ đùn ruột (Infill):</span>
-                    <span className="font-mono studio-text-primary">{generatedSessionJson.hardware.speedF.infillMmS} mm/s</span>
+                    <span className="font-mono studio-text-primary font-semibold">{generatedSessionJson.hardware.speedF.infillMmS} mm/s</span>
                   </div>
                 </div>
               </div>
@@ -1380,11 +1416,11 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Nhiệt độ bàn in (Heatbed):</span>
-                    <span className="font-mono text-rose-700 dark:text-rose-400 font-bold">{generatedSessionJson.hardware.tempsE.bedTempC}°C</span>
+                    <span className="font-mono studio-text-primary font-bold">{generatedSessionJson.hardware.tempsE.bedTempC}°C</span>
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Nhiệt độ đầu phun (Hotend):</span>
-                    <span className="font-mono text-orange-700 dark:text-orange-400 font-bold">{generatedSessionJson.hardware.tempsE.nozzleTempC}°C</span>
+                    <span className="font-mono studio-text-primary font-bold">{generatedSessionJson.hardware.tempsE.nozzleTempC}°C</span>
                   </div>
                   <div className="flex justify-between py-0.5 border-b border-[var(--border-hairline)]">
                     <span className="studio-text-secondary">Quạt tản nhiệt chi tiết:</span>
@@ -1473,10 +1509,14 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                     Profile_In3D_{generatedSessionJson.sessionId}.md (Obsidian Native Markdown)
                   </span>
                   <button
-                    onClick={() => handleCopy(generatedProfile3DMarkdown, 'Markdown Raw')}
-                    className="text-[10px] font-semibold px-2 py-0.5 rounded studio-gold-badge cursor-pointer"
+                    onClick={() => handleCopy(generatedProfile3DMarkdown, 'Markdown Raw', 'raw_md')}
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded cursor-pointer transition-all ${
+                      copiedId === 'raw_md'
+                        ? 'bg-emerald-500/25 text-emerald-800 dark:text-emerald-300 border border-emerald-500/50'
+                        : 'studio-gold-badge'
+                    }`}
                   >
-                    Sao chép toàn bộ
+                    {copiedId === 'raw_md' ? '✅ Đã Sao Chép!' : 'Sao chép toàn bộ'}
                   </button>
                 </div>
                 <pre className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border-hairline)] text-[11px] font-mono studio-text-primary overflow-x-auto max-h-72 whitespace-pre leading-relaxed select-all">
@@ -1505,11 +1545,11 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
             <div className="rounded-xl studio-card overflow-hidden max-h-80 overflow-y-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="sticky top-0 z-20 shadow-md">
-                  <tr className="text-[10px] studio-text-muted uppercase font-semibold">
-                    <th className="py-2.5 px-3 bg-[#dad6cd] dark:bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20">Tên Tham Số</th>
-                    <th className="py-2.5 px-3 bg-[#dad6cd] dark:bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20">Phân Nhóm</th>
-                    <th className="py-2.5 px-3 bg-[#dad6cd] dark:bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20">Giá Trị Cấu Hình</th>
-                    <th className="py-2.5 px-3 bg-[#dad6cd] dark:bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20">Mục Tiêu Report</th>
+                  <tr className="text-[10px] uppercase font-bold tracking-wider">
+                    <th className="py-2.5 px-3 bg-[#dad6cd] dark:bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20 text-[var(--text-primary)]">Tên Tham Số</th>
+                    <th className="py-2.5 px-3 bg-[#dad6cd] dark:bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20 text-[var(--text-primary)]">Phân Nhóm</th>
+                    <th className="py-2.5 px-3 bg-[#dad6cd] dark:bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20 text-[var(--text-primary)]">Giá Trị Cấu Hình</th>
+                    <th className="py-2.5 px-3 bg-[#dad6cd] dark:bg-[#121418] border-b border-[var(--border-strong)] sticky top-0 z-20 text-[var(--text-primary)]">Mục Tiêu Report</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-hairline)] font-mono text-[11px]">
@@ -1529,7 +1569,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                           <span className="text-[10px] studio-text-muted font-normal">{param.id}</span>
                         </td>
                         <td className="py-2 px-3 studio-text-secondary font-sans text-xs">{param.category}</td>
-                        <td className="py-2 px-3 studio-text-gold font-bold">{displayVal}</td>
+                        <td className="py-2 px-3 text-[var(--accent-gold)] dark:text-amber-300 font-bold">{displayVal}</td>
                         <td className="py-2 px-3 font-sans">
                           {param.is_report_target ? (
                             <span className="px-2 py-0.5 rounded-md studio-gold-badge text-[10px] font-bold">
@@ -1562,7 +1602,7 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 <button
                   onClick={handleSaveToVault}
                   disabled={isSavingVault}
-                  className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 border border-amber-500/40 text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm"
+                  className="px-2.5 py-1 rounded-lg studio-cta-primary text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-sm disabled:opacity-50"
                   title="Lưu hoặc cập nhật thông số phiên in này vào Obsidian Vault (.md) và JsonLogs (.json)"
                 >
                   <IconExport size={11} />
@@ -1570,36 +1610,44 @@ WHERE profile_id = "PROFILE_${s.sessionId}"
                 </button>
                 <button
                   onClick={() => downloadFile(`Audit_${generatedSessionJson.sessionId}.json`, JSON.stringify(generatedSessionJson, null, 2), 'application/json')}
-                  className="px-2 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                  className="px-2 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border border-[var(--border-hairline)]"
                   title="Tải tệp JSON xuống máy tính"
                 >
                   <span>📥 Tải JSON</span>
                 </button>
                 <button
                   onClick={() => downloadFile(`Profile_In3D_${generatedSessionJson.sessionId}.md`, generatedProfile3DMarkdown, 'text/markdown')}
-                  className="px-2 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] text-emerald-800 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                  className="px-2 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary border border-[var(--border-hairline)] text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
                   title="Tải tệp Hồ Sơ In 3D (01_Profiles_In3D) xuống máy tính"
                 >
                   <span>📥 Tải Profile 3D</span>
                 </button>
                 <button
                   onClick={() => downloadFile(`PHIEU_${generatedSessionJson.sessionId}.md`, generatedMarkdownTable, 'text/markdown')}
-                  className="px-2 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                  className="px-2 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-primary text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border border-[var(--border-hairline)]"
                   title="Tải tệp Markdown Obsidian xuống máy tính"
                 >
                   <span>📥 Tải Phiếu MD</span>
                 </button>
                 <button
-                  onClick={() => handleCopy(JSON.stringify(generatedSessionJson, null, 2), 'JSON')}
-                  className="px-2 py-1 rounded-lg studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                  onClick={() => handleCopy(JSON.stringify(generatedSessionJson, null, 2), 'JSON', 'preview_json')}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                    copiedId === 'preview_json'
+                      ? 'bg-emerald-500/25 text-emerald-950 dark:text-emerald-300 border-emerald-500/50'
+                      : 'studio-card hover:bg-[var(--bg-hover)] studio-text-secondary hover:studio-text-primary border-[var(--border-hairline)]'
+                  }`}
                 >
-                  <span>Chép JSON</span>
+                  <span>{copiedId === 'preview_json' ? '✅ Đã Chép JSON' : 'Chép JSON'}</span>
                 </button>
                 <button
-                  onClick={() => handleCopy(generatedMarkdownTable, 'Markdown')}
-                  className="px-2 py-1 rounded-lg studio-gold-badge text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                  onClick={() => handleCopy(generatedMarkdownTable, 'Markdown', 'preview_md')}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                    copiedId === 'preview_md'
+                      ? 'bg-emerald-500/25 text-emerald-950 dark:text-emerald-300 border-emerald-500/50'
+                      : 'studio-gold-badge'
+                  }`}
                 >
-                  <span>Chép MD</span>
+                  <span>{copiedId === 'preview_md' ? '✅ Đã Chép MD' : 'Chép MD'}</span>
                 </button>
               </div>
             </div>

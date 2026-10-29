@@ -17,6 +17,7 @@ import {
   IconLayers,
   IconSupport,
 } from '@/components/icons/MinimalIcons';
+import { copyTextToClipboard } from '@/services/slicerExporter';
 
 interface SupabaseHubModalProps {
   isOpen: boolean;
@@ -103,11 +104,13 @@ export function SupabaseHubModal({ isOpen, onClose, onStatusChange }: SupabaseHu
     setSyncing(false);
   };
 
-  const handleCopySql = () => {
+  const handleCopySql = async () => {
     if (sqlSchema) {
-      navigator.clipboard.writeText(sqlSchema);
-      setCopiedSql(true);
-      setTimeout(() => setCopiedSql(false), 2500);
+      const ok = await copyTextToClipboard(sqlSchema);
+      if (ok) {
+        setCopiedSql(true);
+        setTimeout(() => setCopiedSql(false), 2500);
+      }
     }
   };
 

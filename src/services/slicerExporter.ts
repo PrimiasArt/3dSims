@@ -411,6 +411,48 @@ export function downloadFile(filename: string, content: string, mimeType: string
 }
 
 /**
+ * Sao chép chuỗi văn bản bất kỳ vào Clipboard (hỗ trợ cả Clipboard API lẫn fallback textarea execCommand)
+ */
+export async function copyTextToClipboard(text: string): Promise<boolean> {
+  // 1. Cố gắng sử dụng Navigator Clipboard API chuẩn nếu khả dụng
+  if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) {
+      console.warn('navigator.clipboard.writeText không thành công, thử cơ chế fallback execCommand:', err);
+    }
+  }
+
+  // 2. Cơ chế Fallback an toàn: Tạo textarea ẩn và gọi document.execCommand('copy')
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '-9999px';
+    textArea.style.left = '-9999px';
+    textArea.style.width = '2em';
+    textArea.style.height = '2em';
+    textArea.style.padding = '0';
+    textArea.style.border = 'none';
+    textArea.style.outline = 'none';
+    textArea.style.boxShadow = 'none';
+    textArea.style.background = 'transparent';
+    textArea.setAttribute('readonly', '');
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, textArea.value.length);
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return successful;
+  } catch (fallbackErr) {
+    console.error('Tất cả cơ chế sao chép clipboard đều thất bại:', fallbackErr);
+    return false;
+  }
+}
+
+/**
  * Sao chép tóm tắt thông số in vào Clipboard
  */
 export async function copyProfileToClipboard(profile: ISimulationProfile, metrics: ISlicingMetrics): Promise<boolean> {
@@ -432,13 +474,7 @@ export async function copyProfileToClipboard(profile: ISimulationProfile, metric
     `- Chi phí sản xuất ước tính: ${metrics.estimatedCostVnd.toLocaleString('vi-VN')} VNĐ`,
   ].join('\n');
 
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (err) {
-    console.error('Không thể sao chép:', err);
-    return false;
-  }
+  return copyTextToClipboard(text);
 }
 
 /**
